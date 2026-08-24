@@ -280,13 +280,27 @@
       consciousness. It's an attempt to visualize the mystery of it.</p>
     </div>
     <div class="about-regions">
-      <span>Perception</span><span>Memory</span><span>Identity</span><span>Dream</span>
-      <span>Presence</span><span>Desire</span><span>Conflict</span><span>Connection</span>
-      <span>Ego</span><span>The Unknown</span>
+      <span style="border-color:rgba(207,159,66,0.45);color:#e8cf94;">Anamnesis &middot; 22</span>
+      <span style="border-color:rgba(207,159,66,0.45);color:#e8cf94;">Kaleidoscope &middot; 8</span>
+      <span style="border-color:rgba(207,159,66,0.45);color:#e8cf94;">Silhouette &middot; 5</span>
+      <span style="border-color:rgba(207,159,66,0.45);color:#e8cf94;">Motion &middot; 4</span>
+      <span style="border-color:rgba(207,159,66,0.45);color:#e8cf94;">Paint &middot; 4</span>
+      <span style="border-color:rgba(207,159,66,0.45);color:#e8cf94;">Pixel &middot; 2</span>
+      <span style="border-color:rgba(207,159,66,0.45);color:#e8cf94;">VHS &middot; 1</span>
+      <span style="border-color:rgba(154,107,201,0.45);color:#c9a6e8;">Purity &middot; 30</span>
+      <span style="border-color:rgba(154,107,201,0.45);color:#c9a6e8;">Formless &middot; 17</span>
+      <span style="border-color:rgba(154,107,201,0.45);color:#c9a6e8;">Afterimage &middot; 15</span>
+      <span style="border-color:rgba(217,138,74,0.45);color:#eab784;">Darkness &middot; 64</span>
+      <span style="border-color:rgba(217,138,74,0.45);color:#eab784;">Broken &middot; 28</span>
+      <span style="border-color:rgba(217,138,74,0.45);color:#eab784;">AI &middot; 6</span>
+      <span style="border-color:rgba(106,143,168,0.45);color:#9dc0d6;">Glitch &middot; 77</span>
+      <span style="border-color:rgba(106,143,168,0.45);color:#9dc0d6;">Colorful &middot; 72</span>
+      <span style="border-color:rgba(63,185,202,0.45);color:#7fdcea;">Thermal &middot; 1</span>
     </div>
-    <p class="about-caption">Every fragment sits inside one of these ten regions the
-    mind moves through. Zoom into the Field and each one branches further, down to
-    the individual fragment — your Mentograph, wherever it landed.</p>
+    <p class="about-caption">These are the collection's real traits, and how many of the 222
+    pieces carry each one — the fewer that carry it, the rarer it is. The Field's own zones are
+    organized around these same traits. Each piece's exact traits appear on-chain in its own
+    panel once your Mentograph is revealed.</p>
 
     <h3>The Source</h3>
     <div class="about-trait-slot">
@@ -993,53 +1007,66 @@ function drawDetailSource(canvasCtx, w, h) {
   canvasCtx.restore();
 }
 
-/* --- consciousness regions: Level 1 --- */
-var REGIONS = [
-  { key:"perception", name:"Perception", angle: 0.10, dist: 260, palette:["#eef6f2","#5aa9c9","#1f4d63"] },
-  { key:"memory",     name:"Memory",     angle: 0.75, dist: 300, palette:["#fbeee0","#c98a4b","#5a3a1e"] },
-  { key:"identity",   name:"Identity",   angle: 1.35, dist: 250, palette:["#f3e9f7","#9a6bc9","#3d2352"] },
-  { key:"dream",      name:"Dream",      angle: 1.95, dist: 320, palette:["#e8eefc","#5a72c9","#242c5a"] },
-  { key:"presence",   name:"Presence",   angle: 2.55, dist: 210, palette:["#fbfaf4","#c9c19a","#5a5540"] },
-  { key:"desire",     name:"Desire",     angle: 3.15, dist: 290, palette:["#ffece6","#e0654a","#5a1f12"] },
-  { key:"conflict",   name:"Conflict",   angle: 3.75, dist: 270, palette:["#f7e6e6","#c94b4b","#521a1a"] },
-  { key:"connection", name:"Connection", angle: 4.35, dist: 300, palette:["#fff0e9","#e0965a","#5a3418"] },
-  { key:"ego",        name:"Ego",         angle: 4.95, dist: 330, palette:["#eef2ee","#6ba585","#22402f"] },
-  { key:"unknown",    name:"The Unknown",angle: 5.55, dist: 360, palette:["#e9e9f2","#4a4a72","#15152a"] }
+/* --- consciousness regions: Level 1 ---
+   These are the collection's real OpenSea traits, not an invented
+   taxonomy — name, rarity tier, and how many of the 222 pieces carry
+   each one all come straight from the trait sheet. Distance from
+   center increases with rarity, so the Field itself reads as a loose
+   map of scarcity: common traits sit close in, rare ones drift toward
+   the edge. */
+var TRAIT_DATA = [
+  { name:"AI",           rarity:"Rare",         count:6  },
+  { name:"Afterimage",   rarity:"Ultra Rare",   count:15 },
+  { name:"Anamnesis",    rarity:"Legendary",    count:22 },
+  { name:"Broken",       rarity:"Rare",         count:28 },
+  { name:"Colorful",     rarity:"Common",       count:72 },
+  { name:"Darkness",     rarity:"Rare",         count:64 },
+  { name:"Formless",     rarity:"Ultra Rare",   count:17 },
+  { name:"Glitch",       rarity:"Common",       count:77 },
+  { name:"Kaleidoscope", rarity:"Legendary",    count:8  },
+  { name:"Motion",       rarity:"Legendary",    count:4  },
+  { name:"Paint",        rarity:"Legendary",    count:4  },
+  { name:"Pixel",        rarity:"Legendary",    count:2  },
+  { name:"Purity",       rarity:"Ultra Rare",   count:30 },
+  { name:"Silhouette",   rarity:"Legendary",    count:5  },
+  { name:"Thermal",      rarity:"Cold Blooded", count:1  },
+  { name:"VHS",          rarity:"Legendary",    count:1  }
 ];
-var REGION_CONNECTIONS = [
-  ["perception","dream"], ["perception","presence"],
-  ["memory","identity"], ["memory","dream"],
-  ["identity","conflict"],
-  ["ego","unknown"], ["presence","ego"],
-  ["desire","connection"]
-];
-
-/* NESTED TAXONOMY (222-piece Mentographs collection): 10 regions
-   subdivide twice — region -> sub-region (~5) -> sub-sub-region (~4) ->
-   fragment. Nothing about this is hardcoded to any particular count: the
-   branching factors and per-node counts are all derived from however
-   many artworks actually land in each region, so this scales to whatever
-   count artworks-222.json (or any future artworks file) actually
-   contains — this same code ran unchanged at 60, 777, and now 222.
-   Sub-region names are generated from a small per-region word bank
-   instead of hand-authored (hundreds of hand-written names isn't
-   realistic) — the same word bank generate-artworks-777.js used for
-   procedural titles, so the Field's vocabulary and the artwork copy stay
-   related. None of the navigation/render/hit-test code below this setup
-   section needs to change at all — it already walks whatever .children a
-   node has, regardless of depth. */
-var REGION_VOCAB = {
-  perception:  ["Surface","Depth","Refraction","Vantage","Blur","Threshold","Distortion","Focus"],
-  memory:      ["Recall","Forgetting","Residue","Repetition","Echo","Fade","Return","Fragment"],
-  identity:    ["Self","Other","Mask","Shadow","Mirror","Becoming","Core","Unfastened"],
-  dream:       ["Waking","Deep Sleep","Liminal","Vision","Nightmare","Architecture","Symbol","Interior"],
-  presence:    ["Stillness","Flow","Solitude","Witness","Awe","Emptiness","Silence","Pulse"],
-  desire:      ["Longing","Fulfillment","Reaching","Attachment","Searching","Obsession","Absence","Burning"],
-  conflict:    ["Tension","Rupture","Anxiety","Control","Repression","Shadow War","Ornament","Violence"],
-  connection:  ["Bond","Distance","Recognition","Intimacy","Family","Empathy","Shared","Collective"],
-  ego:         ["Fading","Void","Melting","Release","Merging","Boundary","Collapse","Ego Death"],
-  unknown:     ["Threshold","Abyss","Infinity","Uncatalogued","Force","Scale","Remembered","Visible"]
+var RARITY_PALETTE = {
+  "Common":       ["#e9eef2","#6a8fa8","#1f333f"],
+  "Rare":         ["#fdece0","#d98a4a","#5a3418"],
+  "Ultra Rare":   ["#f3e9f7","#9a6bc9","#3d2352"],
+  "Legendary":    ["#fdf6e3","#cf9f42","#4a3a1a"],
+  "Cold Blooded": ["#e8f9fb","#3fb9ca","#123a40"]
 };
+var RARITY_DIST_BOOST = { "Common":0, "Rare":34, "Ultra Rare":62, "Legendary":92, "Cold Blooded":128 };
+var REGIONS = TRAIT_DATA.map(function(t, i) {
+  return {
+    key: t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    name: t.name, rarity: t.rarity, realCount: t.count,
+    angle: (i / TRAIT_DATA.length) * Math.PI * 2,
+    dist: 230 + (RARITY_DIST_BOOST[t.rarity] || 0) + (i % 3) * 14,
+    palette: RARITY_PALETTE[t.rarity] || RARITY_PALETTE.Common
+  };
+});
+var REGION_CONNECTIONS = REGIONS.map(function(r, i) {
+  return [r.key, REGIONS[(i + 1) % REGIONS.length].key];
+});
+
+/* NESTED TAXONOMY (222-piece Mentographs collection): 16 trait-based
+   regions subdivide twice — region -> sub-region (~5) -> sub-sub-region
+   (~4) -> fragment. Nothing about this is hardcoded to any particular
+   count: the branching factors and per-node counts are all derived from
+   however many artworks actually land in each region, so this scales to
+   whatever count artworks-222.json (or any future artworks file)
+   actually contains. Sub-region labels are generic cluster markers
+   (not invented psychology or trait names) purely to make a big region
+   browsable in smaller bites — the only claims of meaning left in this
+   taxonomy are the real trait names at the top level. None of the
+   navigation/render/hit-test code below this setup section needs to
+   change at all — it already walks whatever .children a node has,
+   regardless of depth. */
+var CLUSTER_VOCAB = ["Cluster I","Cluster II","Cluster III","Cluster IV","Cluster V","Cluster VI","Cluster VII","Cluster VIII"];
 var LEVEL1_BRANCH = 5, LEVEL2_BRANCH = 4;
 var LEVEL_RADII = [92, 60, 55]; // region->L1, L1->L2, L2->fragment (world units)
 
@@ -1139,6 +1166,33 @@ function makeContainerNode(name, parent, worldX, worldY, seedStr) {
   };
 }
 
+// Places each of the 222 pieces into exactly one trait zone for the
+// Field's spatial layout, weighted to match the real trait-rarity counts
+// (TRAIT_DATA) as closely as 222 slots allow. The real counts overlap —
+// a single piece can carry more than one trait — but the Field can only
+// place a piece in one spot, so this picks one representative zone per
+// piece. Seeded and deterministic: the same 222 pieces land in the same
+// zones on every load, never re-randomized, and each piece's *real*
+// on-chain traits (shown in its own detail panel) are unaffected by
+// this — they simply take over as the source of truth as reveals happen.
+function reassignPrimaryRegions(list) {
+  var weights = TRAIT_DATA.map(function(t) { return t.count; });
+  var counts = splitByWeight(list.length, weights);
+  var order = list.map(function(_, i) { return i; });
+  var rng = mulberry32(seedFromString("trait-zone-assignment-v1"));
+  for (var i = order.length - 1; i > 0; i--) {
+    var j = Math.floor(rng() * (i + 1));
+    var tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+  }
+  var cursor = 0;
+  TRAIT_DATA.forEach(function(t, ti) {
+    for (var k = 0; k < counts[ti]; k++) {
+      var item = list[order[cursor]]; cursor++;
+      if (item) item.primaryRegion = t.name;
+    }
+  });
+}
+
 function attachArtworks(list) {
   var byRegion = {};
   list.forEach(function(a) {
@@ -1152,7 +1206,7 @@ function attachArtworks(list) {
   REGIONS.forEach(function(r) {
     var items = byRegion[r.name] || [];
     if (!items.length) return;
-    var vocab = REGION_VOCAB[r.key] || ["Fragment"];
+    var vocab = CLUSTER_VOCAB;
 
     var l1Names = pickWords(vocab, Math.min(LEVEL1_BRANCH, items.length), "l1#"+r.key);
     var l1Weights = l1Names.map(function(name, i){ return tierForSeed("l1w#"+r.key+"#"+i).weight; });
@@ -1406,7 +1460,10 @@ canvas.addEventListener("mousemove", function(e) {
       var n = countLeaves(found);
       tooltip.innerHTML = '<div class="t-title">'+found.name+'</div><div class="t-sub">'+n+' fragment'+(n===1?'':'s')+'</div>';
     } else {
-      tooltip.innerHTML = '<div class="t-title">'+found.title+'</div><div class="t-sub">'+found.primaryRegion+'</div>';
+      // Real identity only — no invented per-piece titles, same rule as
+      // the detail panel. The sub-line names the trait zone this piece
+      // was placed in for Field navigation (see reassignPrimaryRegions).
+      tooltip.innerHTML = '<div class="t-title">Mentograph #'+found.tokenId+'</div><div class="t-sub">'+found.primaryRegion+'</div>';
     }
     canvas.style.cursor = "pointer";
   } else if (navStack.length===0 && hitTestSource(e.clientX, e.clientY)) {
@@ -1734,6 +1791,7 @@ document.getElementById("nav-next").addEventListener("click", function(){ naviga
 /* --- boot: data is embedded above, so this runs immediately with no
    network request and no server. --- */
 function boot(list) {
+  reassignPrimaryRegions(list);
   attachArtworks(list);
   requestAnimationFrame(loop);
 }
