@@ -14,8 +14,12 @@
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; opacity: 0.045; mix-blend-mode: overlay;
   }
-  #hud { position: absolute; top: 20px; left: 24px; max-width: 320px; pointer-events: none; }
-  #hud .title { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #cbb98f; margin: 0 0 4px; opacity: 0.85; }
+  #hud { position: absolute; top: 20px; left: 24px; max-width: 360px; pointer-events: none; }
+  #hud .title {
+    font-size: 26px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: #f6f3ec; margin: 0 0 8px; opacity: 1;
+    text-shadow: 0 0 10px rgba(246,243,236,0.55), 0 0 26px rgba(203,185,143,0.4), 0 0 48px rgba(203,185,143,0.2);
+  }
   #hud .sub { font-size: 11.5px; line-height: 1.6; color: #7d766a; margin: 0; }
   #breadcrumb {
     position: absolute; top: 20px; right: 24px; text-align: right;
@@ -103,7 +107,7 @@
 
   /* --- toolbar (About / Gallery / Connect Wallet) + live mint counter --- */
   #toolbar {
-    position: absolute; top: 62px; left: 24px; display: flex; gap: 8px;
+    position: absolute; top: 112px; left: 24px; display: flex; gap: 8px;
     pointer-events: auto;
   }
   #toolbar button {
@@ -285,6 +289,9 @@
     the individual fragment — your Mentograph, wherever it landed.</p>
 
     <h3>The Source</h3>
+    <div class="about-trait-slot">
+      <img src="wtf-source.jpg" alt="The Source">
+    </div>
     <div class="about-body">
       <p>The Source is where Mentographs began.</p>
       <p>It started as a single experiment: an attempt to visualize consciousness
@@ -1583,12 +1590,17 @@ function openArtwork(a) {
 
   // Layer 1 fields render immediately — the viewer never waits on chain data
   // to show the artwork itself.
-  document.getElementById("p-title").textContent = a.title;
-  document.getElementById("p-sub").innerHTML = "Token #" + a.tokenId + " &nbsp;·&nbsp; <b>" + a.primaryRegion + "</b>";
-  document.getElementById("p-traits").innerHTML =
-    traitChip(a.primaryRegion, false) +
-    (a.secondaryTraits||[]).map(function(t){ return traitChip(t, true); }).join("");
-  document.getElementById("p-memory").textContent = a.description || "";
+  // Real name and identity only — no invented per-piece titles or region/
+  // trait labels here. Every Mentograph is officially just "Mentograph #N";
+  // its actual traits (if any exist yet) come from the real on-chain
+  // metadata below, never from this site's own Field-navigation taxonomy.
+  document.getElementById("p-title").textContent = "Mentograph #" + a.tokenId;
+  document.getElementById("p-sub").textContent = "1/1";
+  document.getElementById("p-traits").innerHTML = "";
+  document.getElementById("p-traits").style.display = "none";
+  // Every piece carries the same line — not an individual artist statement,
+  // just the collection's own framing, on every single fragment.
+  document.getElementById("p-memory").textContent = "Consciousness Visualized";
   // Cleared on every open, then re-populated (if at all) once real on-chain
   // metadata resolves below — otherwise a token with no traits yet would
   // keep showing whatever the previously-viewed token's traits were.
@@ -1779,7 +1791,7 @@ function buildGalleryOnce() {
     var cell = document.createElement("div");
     cell.className = "gallery-cell";
     cell.setAttribute("data-token-id", String(a.tokenId));
-    cell.setAttribute("data-search", (a.tokenId + " " + a.title + " " + a.primaryRegion + " " + (a.secondaryTraits || []).join(" ")).toLowerCase());
+    cell.setAttribute("data-search", String(a.tokenId));
 
     var canvas = document.createElement("canvas");
     canvas.width = 160; canvas.height = 160;
@@ -1788,7 +1800,7 @@ function buildGalleryOnce() {
 
     var label = document.createElement("div");
     label.className = "gallery-cell-label";
-    label.textContent = "#" + a.tokenId + " · " + a.title;
+    label.textContent = "Mentograph #" + a.tokenId;
     cell.appendChild(label);
 
     cell.addEventListener("click", function() {
@@ -1886,7 +1898,7 @@ function renderWalletDropdown() {
     var a = ARTWORK_BY_ID[id];
     var row = document.createElement("button");
     row.className = "wallet-token-row";
-    row.textContent = "#" + id + (a ? " · " + a.title : "");
+    row.textContent = "Mentograph #" + id;
     row.addEventListener("click", function() {
       toggleWalletDropdown(false);
       if (a) openArtwork(a);
