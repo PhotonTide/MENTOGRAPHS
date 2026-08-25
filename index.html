@@ -143,6 +143,25 @@
     box-shadow: 0 0 14px rgba(203,185,143,0.35);
   }
   #toolbar a#btn-mint:hover { background: #eae4d8; border-color: #eae4d8; box-shadow: 0 0 20px rgba(203,185,143,0.55); }
+
+  /* --- entry gate: the site opens on a single piece; clicking it opens
+     out into the full Field. Purely a UI-chrome veil + a starting camera
+     position — the Field itself is already alive underneath. --- */
+  .gate-hidden { opacity: 0 !important; pointer-events: none !important; transition: opacity 0.9s ease; }
+  #intro-prompt {
+    position: absolute; left: 50%; bottom: 15%; transform: translateX(-50%);
+    text-align: center; pointer-events: none; opacity: 0; transition: opacity 1.2s ease 0.3s;
+  }
+  #intro-prompt.show { opacity: 1; }
+  #intro-prompt .cta {
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #cbb98f;
+    animation: gatePulse 2.6s ease-in-out infinite;
+  }
+  #intro-prompt .hint {
+    font-size: 10px; letter-spacing: 0.1em; color: #5f5a50; margin-top: 6px;
+  }
+  @keyframes gatePulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+  #field.gate-active { cursor: pointer; }
   #mint-counter {
     font-size: 10.5px; letter-spacing: 0.08em; color: #8a8378; margin: 6px 0 0;
   }
@@ -244,6 +263,7 @@
     #hud .title { font-size: 20px; }
     #toolbar { flex-wrap: wrap; max-width: calc(100vw - 48px); }
     #toolbar button, #toolbar a#btn-mint { padding: 10px 13px; font-size: 11px; }
+    #intro-prompt { bottom: 12%; }
     .overlay-panel { padding: 26px 20px; margin: 40px auto 60px; }
     .overlay-panel h2 { font-size: 22px; }
     .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
@@ -277,6 +297,11 @@
   <button id="back-to-field">&larr; the complete Field</button>
 </div>
 <div id="region-label"></div>
+
+<div id="intro-prompt">
+  <div class="cta">Click to open it</div>
+  <div class="hint">one fragment of the Field</div>
+</div>
 
 <div id="tooltip"></div>
 
@@ -1360,9 +1385,30 @@ resize();
 grainTile = buildGrainTile();
 drawGrain();
 
-var camera = { x:0, y:0, scale:1.0 };
-var camTarget = { x:0, y:0, scale:1.0 };
+/* --- entry gate: the site opens zoomed in tight on the Source — reads as
+   a single glowing piece — with the HUD/toolbar hidden and a "click to
+   open it" prompt. The Field itself is already rendering and drifting
+   underneath; the first click/tap anywhere just pulls the camera back
+   out to the normal overview and fades the UI in, so the whole
+   experience reads as one piece opening out into the full constellation. */
+var GATE_SCALE = 9.5;
+var introRevealed = false;
+var camera = { x:0, y:0, scale:GATE_SCALE };
+var camTarget = { x:0, y:0, scale:GATE_SCALE };
 var defaultCam = { x:0, y:0, scale:1.0 };
+function revealField() {
+  if (introRevealed) return;
+  introRevealed = true;
+  camTarget.x = defaultCam.x; camTarget.y = defaultCam.y; camTarget.scale = defaultCam.scale;
+  document.getElementById("hud").classList.remove("gate-hidden");
+  document.getElementById("toolbar").classList.remove("gate-hidden");
+  document.getElementById("intro-prompt").classList.remove("show");
+  canvas.classList.remove("gate-active");
+}
+document.getElementById("hud").classList.add("gate-hidden");
+document.getElementById("toolbar").classList.add("gate-hidden");
+document.getElementById("intro-prompt").classList.add("show");
+canvas.classList.add("gate-active");
 
 var mouse = { down:false, dragging:false, lastX:0, lastY:0 };
 var hoverKind = null, hoverRef = null;
@@ -1538,6 +1584,7 @@ function hitTestSource(sx, sy) {
 
 var tooltip = document.getElementById("tooltip");
 canvas.addEventListener("mousemove", function(e) {
+  if (!introRevealed) return; // frozen on the gate piece until it's clicked open
   if (mouse.down) {
     var dx=(e.clientX-mouse.lastX)/camera.scale, dy=(e.clientY-mouse.lastY)/camera.scale;
     camTarget.x -= dx; camTarget.y -= dy;
@@ -1584,6 +1631,7 @@ canvas.addEventListener("mouseleave", function() {
 canvas.addEventListener("mousedown", function(e) { mouse.down=true; mouse.dragging=false; mouse.lastX=e.clientX; mouse.lastY=e.clientY; });
 window.addEventListener("mouseup", function() { mouse.down=false; });
 canvas.addEventListener("click", function(e) {
+  if (!introRevealed) { revealField(); return; }
   if (mouse.dragging) return;
   if (navStack.length===0) {
     var r = hitTestField(e.clientX, e.clientY);
@@ -1599,6 +1647,7 @@ canvas.addEventListener("click", function(e) {
 });
 canvas.addEventListener("wheel", function(e) {
   e.preventDefault();
+  if (!introRevealed) return;
   var factor = e.deltaY>0 ? 0.92 : 1.08;
   camTarget.scale = Math.max(0.35, Math.min(4.5, camTarget.scale*factor));
 }, { passive:false });
@@ -1623,6 +1672,7 @@ canvas.addEventListener("touchstart", function(e) {
 }, { passive:true });
 canvas.addEventListener("touchmove", function(e) {
   e.preventDefault();
+  if (!introRevealed) return;
   if (e.touches.length === 1 && mouse.down) {
     var t = e.touches[0];
     var dx=(t.clientX-mouse.lastX)/camera.scale, dy=(t.clientY-mouse.lastY)/camera.scale;
@@ -1639,6 +1689,7 @@ canvas.addEventListener("touchmove", function(e) {
 canvas.addEventListener("touchend", function(e) {
   if (e.touches.length === 0) {
     touchPinchDist = null;
+    if (!introRevealed) { revealField(); mouse.down = false; mouse.dragging = false; return; }
     if (mouse.down && !mouse.dragging) {
       // a tap that didn't drag — same action a click would take at this spot
       var x = mouse.lastX, y = mouse.lastY;
