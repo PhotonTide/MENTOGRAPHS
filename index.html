@@ -181,16 +181,11 @@
   #field.gate-active { cursor: pointer; }
   #mint-counter {
     font-size: 10.5px; letter-spacing: 0.08em; color: #8a8378; margin: 6px 0 0;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
   #mint-counter .n { color: #cbb98f; }
 
-  /* --- mint countdown + add-to-calendar --- */
-  #mint-countdown {
-    font-size: 11.5px; letter-spacing: 0.02em; color: #cbb98f;
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  }
-  #mint-countdown.live { color: #a9d8ab; }
-  #mint-countdown .num { color: #eae4d8; font-variant-numeric: tabular-nums; }
+  /* --- add-to-calendar --- */
   #cal-wrap { position: relative; }
   #cal-toggle {
     background: none; border: none; padding: 0; margin: 0; cursor: pointer;
@@ -327,8 +322,9 @@
     <p class="title">Mentographs</p>
     <span class="byline">by Photon Tide</span>
   </div>
-  <div class="sub" id="mint-countdown">
-    <span id="mint-countdown-text">—</span>
+  <p class="sub" id="hud-sub">Drag to drift. Scroll to draw closer. Click a region to enter it.</p>
+  <div class="sub" id="mint-counter">
+    <span class="n">—</span> / 222 minted
     <span id="cal-wrap">
       <button id="cal-toggle" type="button">+ add to calendar</button>
       <div id="cal-dropdown">
@@ -337,8 +333,6 @@
       </div>
     </span>
   </div>
-  <p class="sub" id="hud-sub">Drag to drift. Scroll to draw closer. Click a region to enter it.</p>
-  <p class="sub" id="mint-counter"><span class="n">—</span> / 222 minted</p>
 </div>
 
 <div id="toolbar">
@@ -1649,22 +1643,23 @@ function hitTestSource(sx, sy) {
   var d = Math.sqrt(w.x*w.x + w.y*w.y);
   return d < 62;
 }
-// The far end of a hover-synapse thread — drawn at camera.scale*0.55 (see
-// render()), so its hit radius is scaled the same way to match. These
-// targets can sit anywhere in the Field regardless of current nav depth,
-// so this checks the currently-drawn hoverSynapses list directly rather
-// than currentChildren().
+// The far end of a hover-synapse thread. These targets can sit anywhere
+// in the Field regardless of current nav depth, so this checks the
+// currently-drawn hoverSynapses list directly rather than
+// currentChildren(). The hit radius intentionally matches
+// hitTestChildren's own formula exactly (same 24*(0.7+expansion)*depth+14
+// used for every real fragment's own click target) rather than padding
+// it out further — these targets can land right next to an unrelated
+// real fragment, and going bigger than a normal hitbox risks the thread
+// "stealing" hovers meant for that neighbor (see the proximity check in
+// the mousemove handler, which also guards against this).
 function hitTestSynapseTargets(sx, sy) {
   if (!hoverSynapses.length) return null;
   var w = screenToWorld(sx, sy);
   var best = null, bestD = Infinity;
   hoverSynapses.forEach(function(node) {
     var dx = w.x-node.worldX, dy = w.y-node.worldY, d = Math.sqrt(dx*dx+dy*dy);
-    // Deliberately much more forgiving than the drawn dot: these are small
-    // and can land anywhere across the Field, so the clickable area is
-    // kept generous (full child-size hitbox plus extra padding) even
-    // though the visual stays modest — easy to hit, not just to see.
-    var rad = 24*(0.7+node.dna.expansion)*(node.depthScale||1) + 34;
+    var rad = 24*(0.7+node.dna.expansion)*(node.depthScale||1) + 14;
     if (d<rad && d<bestD) { best=node; bestD=d; }
   });
   return best;
@@ -1678,6 +1673,10 @@ function sharedTraits(a, b) {
 
 var tooltip = document.getElementById("tooltip");
 var hoveredSynapseTarget = null;
+var synapseGraceTimer = null;
+function clearSynapseGrace() {
+  if (synapseGraceTimer) { clearTimeout(synapseGraceTimer); synapseGraceTimer = null; }
+}
 canvas.addEventListener("mousemove", function(e) {
   if (!introRevealed) return; // frozen on the gate piece until it's clicked open
   if (mouse.down) {
@@ -1688,14 +1687,32 @@ canvas.addEventListener("mousemove", function(e) {
     mouse.dragging = true;
     return;
   }
-  // The far end of an already-drawn synapse thread takes priority over
-  // everything else — it can sit anywhere in the Field, so check it before
-  // falling back to the normal region/child hit test below. Keeping the
-  // source fragment's own hoverSynapses untouched here (rather than
-  // recomputing from the target) is what keeps the threads from jumping
-  // to a new source as the cursor crosses toward one of them.
+  // The far end of an already-drawn synapse thread normally takes
+  // priority over everything else — it can sit anywhere in the Field, so
+  // it's checked before falling back to the normal region/child hit test
+  // below. Keeping the source fragment's own hoverSynapses untouched here
+  // (rather than recomputing from the target) is what keeps the threads
+  // from jumping to a new source as the cursor crosses toward one of
+  // them. BUT a synapse target's hitbox can land right on top of an
+  // unrelated real fragment sitting nearby in the Field — when that
+  // happens, whichever one the cursor is actually closer to wins, so an
+  // oversized-feeling synapse hitbox never "steals" a hover meant for a
+  // real neighboring fragment.
   var synHit = hitTestSynapseTargets(e.clientX, e.clientY);
+
+  var found = null, kind = null;
+  if (navStack.length===0) { found = hitTestField(e.clientX, e.clientY); kind = "region"; }
+  else { found = hitTestChildren(e.clientX, e.clientY); kind = "child"; }
+
+  if (synHit && found) {
+    var wArb = screenToWorld(e.clientX, e.clientY);
+    var dSyn = Math.sqrt(Math.pow(wArb.x-synHit.worldX,2) + Math.pow(wArb.y-synHit.worldY,2));
+    var dNorm = Math.sqrt(Math.pow(wArb.x-found.worldX,2) + Math.pow(wArb.y-found.worldY,2));
+    if (dNorm <= dSyn) synHit = null;
+  }
+
   if (synHit) {
+    clearSynapseGrace();
     hoveredSynapseTarget = synHit;
     canvas.style.cursor = "pointer";
     tooltip.style.display = "block";
@@ -1708,9 +1725,26 @@ canvas.addEventListener("mousemove", function(e) {
   }
   hoveredSynapseTarget = null;
 
-  var found = null, kind = null;
-  if (navStack.length===0) { found = hitTestField(e.clientX, e.clientY); kind = "region"; }
-  else { found = hitTestChildren(e.clientX, e.clientY); kind = "child"; }
+  if (!found && hoverSynapses.length) {
+    // The cursor is off every fragment, but a synapse thread is currently
+    // shown — nearly always this means the cursor is crossing the gap
+    // between the source fragment and one of its thread targets (they
+    // can be a real distance apart), not that the user wants the thread
+    // gone. Keep it drawn for a short grace window instead of nuking it
+    // the instant the cursor leaves the source's own hitbox; if nothing
+    // (source or a target) has been re-hovered by the time the timer
+    // fires, clear it for real then.
+    tooltip.style.display = "none";
+    canvas.style.cursor = mouse.down ? "grabbing" : "default";
+    clearSynapseGrace();
+    synapseGraceTimer = setTimeout(function() {
+      hoverKind = null; hoverRef = null; hoverSynapses = []; hoveredSynapseTarget = null;
+      synapseGraceTimer = null;
+    }, 450);
+    return;
+  }
+  clearSynapseGrace();
+
   hoverKind = found ? kind : null;
   hoverRef = found;
   // Only real fragments (leaves, no .children) get synapse threads —
@@ -1740,6 +1774,7 @@ canvas.addEventListener("mousemove", function(e) {
   }
 });
 canvas.addEventListener("mouseleave", function() {
+  clearSynapseGrace();
   hoverKind = null; hoverRef = null; hoverSynapses = []; hoveredSynapseTarget = null;
   tooltip.style.display = "none";
 });
@@ -2167,41 +2202,11 @@ refreshMintCounter();
 setInterval(refreshMintCounter, 25000);
 window.addEventListener("viem-adapter-ready", function() { setTimeout(refreshMintCounter, 600); });
 
-/* --- Mint countdown + add-to-calendar (HUD) ---
+/* --- Add-to-calendar (HUD) ---
    Aug 26 2026, 9:00 AM Pacific — Pacific is UTC-7 in August (daylight
    time), so that's 16:00 UTC. If the real mint time ever moves, this one
    constant is the only thing that needs to change. */
 var MINT_TIME_MS = Date.parse("2026-08-26T16:00:00Z");
-
-function formatCountdown(ms) {
-  var s = Math.max(0, Math.floor(ms / 1000));
-  var d = Math.floor(s / 86400); s -= d * 86400;
-  var h = Math.floor(s / 3600); s -= h * 3600;
-  var m = Math.floor(s / 60); s -= m * 60;
-  var parts = [];
-  if (d) parts.push(d + "d");
-  if (d || h) parts.push(h + "h");
-  if (d || h || m) parts.push(m + "m");
-  parts.push(s + "s");
-  return parts.join(" ");
-}
-
-var mintCountdownTimer = null;
-function updateMintCountdown() {
-  var el = document.getElementById("mint-countdown-text");
-  var wrap = document.getElementById("mint-countdown");
-  if (!el) return;
-  var diff = MINT_TIME_MS - Date.now();
-  if (diff <= 0) {
-    el.textContent = "Minting is live";
-    if (wrap) wrap.classList.add("live");
-    if (mintCountdownTimer) { clearInterval(mintCountdownTimer); mintCountdownTimer = null; }
-    return;
-  }
-  el.textContent = "Mint opens in " + formatCountdown(diff);
-}
-updateMintCountdown();
-mintCountdownTimer = setInterval(updateMintCountdown, 1000);
 
 (function setupAddToCalendar() {
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
