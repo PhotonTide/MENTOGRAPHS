@@ -184,6 +184,34 @@
   }
   #mint-counter .n { color: #cbb98f; }
 
+  /* --- mint countdown + add-to-calendar --- */
+  #mint-countdown {
+    font-size: 11.5px; letter-spacing: 0.02em; color: #cbb98f;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  #mint-countdown.live { color: #a9d8ab; }
+  #mint-countdown .num { color: #eae4d8; font-variant-numeric: tabular-nums; }
+  #cal-wrap { position: relative; }
+  #cal-toggle {
+    background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+    color: #7d766a; font-size: 10.5px; letter-spacing: 0.04em; font-family: inherit;
+    text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
+    pointer-events: auto;
+  }
+  #cal-toggle:hover { color: #cbb98f; }
+  #cal-dropdown {
+    position: absolute; top: calc(100% + 8px); left: 0; min-width: 190px;
+    background: rgba(8,7,6,0.96); border: 1px solid rgba(203,185,143,0.22); border-radius: 4px;
+    padding: 6px; display: none; box-shadow: 0 12px 30px rgba(0,0,0,0.45); z-index: 5;
+    pointer-events: auto;
+  }
+  #cal-dropdown.open { display: block; }
+  #cal-dropdown a {
+    display: block; padding: 7px 8px; font-size: 11.5px; color: #d8d2c4; text-decoration: none;
+    border-radius: 3px; letter-spacing: 0.01em; white-space: nowrap;
+  }
+  #cal-dropdown a:hover { background: rgba(203,185,143,0.1); color: #eae4d8; }
+
   /* --- wallet dropdown --- */
   #wallet-wrap { position: relative; }
   #wallet-dropdown {
@@ -298,6 +326,16 @@
   <div class="title-row">
     <p class="title">Mentographs</p>
     <span class="byline">by Photon Tide</span>
+  </div>
+  <div class="sub" id="mint-countdown">
+    <span id="mint-countdown-text">—</span>
+    <span id="cal-wrap">
+      <button id="cal-toggle" type="button">+ add to calendar</button>
+      <div id="cal-dropdown">
+        <a id="cal-google" href="#" target="_blank" rel="noopener">Google Calendar</a>
+        <a id="cal-ics" href="#" download="mentographs-mint.ics">Apple / Outlook (.ics)</a>
+      </div>
+    </span>
   </div>
   <p class="sub" id="hud-sub">Drag to drift. Scroll to draw closer. Click a region to enter it.</p>
   <p class="sub" id="mint-counter"><span class="n">—</span> / 222 minted</p>
@@ -1553,7 +1591,7 @@ function render(t) {
       var synTgt = worldToScreen(target.worldX, target.worldY);
       var isHoveredEnd = hoveredSynapseTarget === target;
       organicCurve(ctx, synSrc, synTgt, { color: isHoveredEnd ? "rgba(203,185,143,0.75)" : "rgba(203,185,143,0.42)", width: isHoveredEnd ? 1.8 : 1.3, blur:4, t:t, seed:seedFromString("synapse#"+hoverRef.tokenId+"#"+target.tokenId), wobbleAmt:0.12 });
-      drawRegion(target, synTgt, camera.scale*0.55*(isHoveredEnd?1.15:1), t, 0.9, null, 0, isHoveredEnd?0.5:0);
+      drawRegion(target, synTgt, camera.scale*0.65*(isHoveredEnd?1.2:1), t, 0.9, null, 0, isHoveredEnd?0.5:0);
     });
   }
 
@@ -1622,7 +1660,11 @@ function hitTestSynapseTargets(sx, sy) {
   var best = null, bestD = Infinity;
   hoverSynapses.forEach(function(node) {
     var dx = w.x-node.worldX, dy = w.y-node.worldY, d = Math.sqrt(dx*dx+dy*dy);
-    var rad = (24*(0.7+node.dna.expansion)*(node.depthScale||1))*0.55 + 14;
+    // Deliberately much more forgiving than the drawn dot: these are small
+    // and can land anywhere across the Field, so the clickable area is
+    // kept generous (full child-size hitbox plus extra padding) even
+    // though the visual stays modest — easy to hit, not just to see.
+    var rad = 24*(0.7+node.dna.expansion)*(node.depthScale||1) + 34;
     if (d<rad && d<bestD) { best=node; bestD=d; }
   });
   return best;
@@ -2125,6 +2167,85 @@ refreshMintCounter();
 setInterval(refreshMintCounter, 25000);
 window.addEventListener("viem-adapter-ready", function() { setTimeout(refreshMintCounter, 600); });
 
+/* --- Mint countdown + add-to-calendar (HUD) ---
+   Aug 26 2026, 9:00 AM Pacific — Pacific is UTC-7 in August (daylight
+   time), so that's 16:00 UTC. If the real mint time ever moves, this one
+   constant is the only thing that needs to change. */
+var MINT_TIME_MS = Date.parse("2026-08-26T16:00:00Z");
+
+function formatCountdown(ms) {
+  var s = Math.max(0, Math.floor(ms / 1000));
+  var d = Math.floor(s / 86400); s -= d * 86400;
+  var h = Math.floor(s / 3600); s -= h * 3600;
+  var m = Math.floor(s / 60); s -= m * 60;
+  var parts = [];
+  if (d) parts.push(d + "d");
+  if (d || h) parts.push(h + "h");
+  if (d || h || m) parts.push(m + "m");
+  parts.push(s + "s");
+  return parts.join(" ");
+}
+
+var mintCountdownTimer = null;
+function updateMintCountdown() {
+  var el = document.getElementById("mint-countdown-text");
+  var wrap = document.getElementById("mint-countdown");
+  if (!el) return;
+  var diff = MINT_TIME_MS - Date.now();
+  if (diff <= 0) {
+    el.textContent = "Minting is live";
+    if (wrap) wrap.classList.add("live");
+    if (mintCountdownTimer) { clearInterval(mintCountdownTimer); mintCountdownTimer = null; }
+    return;
+  }
+  el.textContent = "Mint opens in " + formatCountdown(diff);
+}
+updateMintCountdown();
+mintCountdownTimer = setInterval(updateMintCountdown, 1000);
+
+(function setupAddToCalendar() {
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function icsStamp(dt) {
+    return dt.getUTCFullYear() + pad2(dt.getUTCMonth() + 1) + pad2(dt.getUTCDate())
+      + "T" + pad2(dt.getUTCHours()) + pad2(dt.getUTCMinutes()) + pad2(dt.getUTCSeconds()) + "Z";
+  }
+  var start = new Date(MINT_TIME_MS);
+  var end = new Date(MINT_TIME_MS + 60 * 60 * 1000); // 1hr placeholder window
+  var title = "Mentographs mint opens";
+  var details = "Mentographs — 222 1/1 pieces by Photon Tide. Minting opens on OpenSea.";
+  var location = "https://opensea.io/collection/mentographs/overview";
+
+  var gUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+    + "&text=" + encodeURIComponent(title)
+    + "&dates=" + icsStamp(start) + "/" + icsStamp(end)
+    + "&details=" + encodeURIComponent(details)
+    + "&location=" + encodeURIComponent(location);
+  document.getElementById("cal-google").href = gUrl;
+
+  var ics = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Mentographs//Mint//EN", "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    "UID:mentographs-mint-" + MINT_TIME_MS + "@mentographs.art",
+    "DTSTAMP:" + icsStamp(new Date()),
+    "DTSTART:" + icsStamp(start),
+    "DTEND:" + icsStamp(end),
+    "SUMMARY:" + title,
+    "DESCRIPTION:" + details,
+    "LOCATION:" + location,
+    "END:VEVENT", "END:VCALENDAR"
+  ].join("\r\n");
+  document.getElementById("cal-ics").href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
+
+  document.getElementById("cal-toggle").addEventListener("click", function(e) {
+    e.stopPropagation();
+    document.getElementById("cal-dropdown").classList.toggle("open");
+  });
+  document.addEventListener("click", function(e) {
+    var wrap = document.getElementById("cal-wrap");
+    if (wrap && !wrap.contains(e.target)) document.getElementById("cal-dropdown").classList.remove("open");
+  });
+})();
+
 /* --- About overlay --- */
 function openOverlay(id) { document.getElementById(id).classList.add("open"); }
 function closeOverlay(id) { document.getElementById(id).classList.remove("open"); }
@@ -2236,6 +2357,38 @@ function shortWalletAddr(addr) { return addr ? addr.slice(0, 6) + "…" + addr.s
 var walletAddress = null;
 var ownedTokenIds = [];
 
+// Free at cloud.reown.com (formerly WalletConnect Cloud) — paste the
+// Project ID here to let mobile browsers without an injected wallet
+// (i.e. not opened inside a wallet app's own browser) connect via
+// WalletConnect's QR-code / deep-link flow. This is only used to READ
+// an address so the site can look up what a wallet owns — the actual
+// mint transaction always happens over on OpenSea, so nothing about
+// minting depends on this. Left blank, "Connect Wallet" behaves exactly
+// as it did before: injected wallets (MetaMask, Rabby, etc.) only.
+var WALLETCONNECT_PROJECT_ID = "";
+var wcProvider = null;
+var wcProviderPromise = null;
+
+function getWalletConnectProvider() {
+  if (!WALLETCONNECT_PROJECT_ID) return Promise.reject(new Error("WalletConnect not configured"));
+  if (wcProviderPromise) return wcProviderPromise;
+  wcProviderPromise = import("https://esm.sh/@walletconnect/ethereum-provider@2?bundle").then(function(mod) {
+    var EthereumProvider = mod.EthereumProvider || mod.default;
+    return EthereumProvider.init({
+      projectId: WALLETCONNECT_PROJECT_ID,
+      chains: [1],
+      showQrModal: true,
+      metadata: {
+        name: "Mentographs",
+        description: "222 unique 1/1 mixed-media works by Photon Tide",
+        url: "https://mentographs.art",
+        icons: ["https://mentographs.art/favicon.png"]
+      }
+    });
+  });
+  return wcProviderPromise;
+}
+
 function renderWalletButton() {
   document.getElementById("btn-wallet").textContent = walletAddress ? shortWalletAddr(walletAddress) : "Connect Wallet";
 }
@@ -2278,21 +2431,59 @@ function refreshOwnedTokens() {
   });
 }
 
+function onWalletConnected(address) {
+  walletAddress = address;
+  renderWalletButton();
+  return refreshOwnedTokens();
+}
+
 document.getElementById("btn-wallet").addEventListener("click", function() {
   if (walletAddress) { toggleWalletDropdown(); return; }
-  if (!window.ethereum) {
-    alert("No wallet extension detected. Install a browser wallet (MetaMask, Rabby, Coinbase Wallet, etc.) to look up what you minted here — or check your wallet/OpenSea directly.");
+
+  if (window.ethereum) {
+    window.ethereum.request({ method: "eth_requestAccounts" }).then(function(accounts) {
+      return onWalletConnected(accounts[0]);
+    }).then(function() {
+      toggleWalletDropdown(true);
+    }).catch(function(err) {
+      console.warn("Wallet connection failed or was rejected:", err);
+    });
     return;
   }
-  window.ethereum.request({ method: "eth_requestAccounts" }).then(function(accounts) {
-    walletAddress = accounts[0];
-    renderWalletButton();
-    return refreshOwnedTokens();
-  }).then(function() {
-    toggleWalletDropdown(true);
-  }).catch(function(err) {
-    console.warn("Wallet connection failed or was rejected:", err);
-  });
+
+  // No injected wallet — the common case on a mobile browser. Fall back
+  // to WalletConnect's QR/deep-link flow if a Project ID is configured;
+  // otherwise fall through to the same message as before.
+  if (WALLETCONNECT_PROJECT_ID) {
+    var btn = document.getElementById("btn-wallet");
+    var prevLabel = btn.textContent;
+    btn.textContent = "Connecting…";
+    getWalletConnectProvider().then(function(provider) {
+      wcProvider = provider;
+      if (provider.on) {
+        provider.on("accountsChanged", function(accounts) {
+          walletAddress = accounts && accounts[0] ? accounts[0] : null;
+          renderWalletButton();
+          if (walletAddress) refreshOwnedTokens(); else { ownedTokenIds = []; renderWalletDropdown(); }
+        });
+        provider.on("disconnect", function() {
+          walletAddress = null; ownedTokenIds = [];
+          renderWalletButton(); renderWalletDropdown();
+        });
+      }
+      return provider.enable();
+    }).then(function(accounts) {
+      return onWalletConnected(accounts[0]);
+    }).then(function() {
+      toggleWalletDropdown(true);
+    }).catch(function(err) {
+      console.warn("WalletConnect connection failed or was rejected:", err);
+      btn.textContent = prevLabel;
+    });
+    return;
+  }
+
+  alert("No wallet extension detected. Install a browser wallet (MetaMask, Rabby, Coinbase Wallet, etc.) to look up what you minted here — or check your wallet/OpenSea directly.");
 });
 
 document.addEventListener("click", function(e) {
