@@ -30,21 +30,28 @@ window.CONTRACT_CONFIG = {
   // collection's ownership fast enough to do straight from the browser.
   deployBlock: 25785152,
 
-  // Public RPC endpoints, no API key required. Listed as a fallback
-  // chain (viem tries them in order and moves on if one errors or times
-  // out) so a single provider having a bad day doesn't take the site down.
+  // Public RPC endpoint(s). Checked directly in a real browser (not just
+  // curl/server-side, which never hits CORS) on 2026-08-26 and found:
+  //   - rpc.ankr.com/eth: now requires a paid API key. Removed.
+  //   - eth.llamarpc.com: has no Access-Control-Allow-Origin header at
+  //     all, so it can NEVER be called from browser JS — every request
+  //     fails at the CORS preflight before it even reaches their server.
+  //     Removed (it was silent dead weight even before ankr broke).
+  //   - eth.merkle.io: same CORS problem as llamarpc.com. Removed.
+  //   - ethereum-rpc.publicnode.com: the only one of the four that
+  //     actually supports being called from a browser (no CORS block).
+  //     It did return 403s under the burst of parallel requests generated
+  //     while testing this — see the reduced CONCURRENCY / larger
+  //     CHUNK_SIZE in viem-blockchain-adapter.js, which cuts the request
+  //     count way down to stay under whatever rate limit that was.
   //
-  // rpc.ankr.com/eth used to work unauthenticated but now rejects every
-  // request with "Unauthorized: you must authenticate with an API key" —
-  // it was previously last in this list, so once it (correctly) stopped
-  // working, any request that fell through to it (e.g. because the first
-  // two providers were rate-limited under a burst of parallel calls) hard
-  // failed instead of actually falling back. Dropped it in favor of
-  // eth.merkle.io, another no-key-required public endpoint.
+  // Bottom line: free public RPCs are inherently flaky for this (CORS
+  // support and rate limits vary and change without notice). The durable
+  // fix is a real provider key — Alchemy or Infura's free tier both work
+  // great and support CORS properly; add the URL they give you as an
+  // additional entry in this array (keep publicnode as a fallback).
   rpcUrls: [
-    "https://ethereum-rpc.publicnode.com",
-    "https://eth.llamarpc.com",
-    "https://eth.merkle.io"
+    "https://ethereum-rpc.publicnode.com"
   ],
 
   // Public IPFS gateways (same fallback idea) used to resolve ipfs://

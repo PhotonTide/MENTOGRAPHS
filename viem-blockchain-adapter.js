@@ -114,7 +114,12 @@ ViemBlockchainAdapter.prototype._buildIndex = function () {
   // though totalSupply() (a separate, single-block call) keeps working
   // fine. Paginating in fixed-size windows, with retry-by-bisection on any
   // window a given provider rejects, avoids that failure mode entirely.
-  var CHUNK_SIZE = BigInt(1900);
+  // Down to a single working provider (see contract-config.js), fewer and
+  // bigger requests beats many small ones — publicnode 403'd under the
+  // burst of ~30 parallel calls the smaller chunk size produced. A wider
+  // window means far fewer total requests; retry-by-bisection still
+  // kicks in per-window if any individual one is still rejected.
+  var CHUNK_SIZE = BigInt(15000);
 
   return client.getBlockNumber().then(function (latest) {
     var fromBlock = BigInt(config.deployBlock || 0);
@@ -148,9 +153,10 @@ ViemBlockchainAdapter.prototype._buildIndex = function () {
       });
     }
 
-    // Cap how many windows are in flight at once rather than firing every
-    // chunk simultaneously against free public endpoints.
-    var CONCURRENCY = 3;
+    // Sequential rather than parallel now that there's only one provider
+    // to be gentle with — spreads requests out over their natural
+    // round-trip time instead of bursting several at once.
+    var CONCURRENCY = 1;
     var results = [];
     var i = 0;
     function next() {
