@@ -104,11 +104,68 @@ ViemBlockchainAdapter.prototype._buildIndex = function () {
     console.warn("ViemBlockchainAdapter: no Transfer event in CONTRACT_CONFIG.abi");
     return Promise.resolve();
   }
-  return client.getLogs({
-    address: config.address,
-    event: TRANSFER_EVENT,
-    fromBlock: BigInt(config.deployBlock || 0),
-    toBlock: "latest"
+
+  // Public RPC endpoints commonly cap how many blocks a single eth_getLogs
+  // call can span, and the caps vary by provider and aren't documented
+  // consistently. deployBlock..latest only grows as the collection ages,
+  // so a single unbounded getLogs call that happens to work on day one can
+  // start silently failing later — the whole index falls back to empty,
+  // which reads on-page as "no Mentographs found" for every wallet, even
+  // though totalSupply() (a separate, single-block call) keeps working
+  // fine. Paginating in fixed-size windows, with retry-by-bisection on any
+  // window a given provider rejects, avoids that failure mode entirely.
+  var CHUNK_SIZE = BigInt(1900);
+
+  return client.getBlockNumber().then(function (latest) {
+    var fromBlock = BigInt(config.deployBlock || 0);
+    var ranges = [];
+    for (var start = fromBlock; start <= latest; start += CHUNK_SIZE) {
+      var end = start + CHUNK_SIZE - BigInt(1);
+      if (end > latest) end = latest;
+      ranges.push([start, end]);
+    }
+
+    function fetchRange(fromB, toB, attemptsLeft) {
+      return client.getLogs({
+        address: config.address,
+        event: TRANSFER_EVENT,
+        fromBlock: fromB,
+        toBlock: toB
+      }).catch(function (err) {
+        if (attemptsLeft <= 0 || toB <= fromB) {
+          console.warn("ViemBlockchainAdapter: giving up on block range " + fromB + "-" + toB + " after retries:", err);
+          return [];
+        }
+        // Split the offending window in half and retry each half — if the
+        // failure was a range-too-large rejection from one provider, a
+        // narrower window (possibly served by a different fallback
+        // provider) usually succeeds.
+        var mid = fromB + (toB - fromB) / BigInt(2);
+        return Promise.all([
+          fetchRange(fromB, mid, attemptsLeft - 1),
+          fetchRange(mid + BigInt(1), toB, attemptsLeft - 1)
+        ]).then(function (parts) { return parts[0].concat(parts[1]); });
+      });
+    }
+
+    // Cap how many windows are in flight at once rather than firing every
+    // chunk simultaneously against free public endpoints.
+    var CONCURRENCY = 6;
+    var results = [];
+    var i = 0;
+    function next() {
+      if (i >= ranges.length) return Promise.resolve();
+      var idx = i++;
+      return fetchRange(ranges[idx][0], ranges[idx][1], 2).then(function (logs) {
+        results[idx] = logs;
+        return next();
+      });
+    }
+    var workers = [];
+    for (var w = 0; w < CONCURRENCY && w < ranges.length; w++) workers.push(next());
+    return Promise.all(workers).then(function () {
+      return [].concat.apply([], results);
+    });
   }).then(function (logs) {
     var blockNumbers = {};
     logs.forEach(function (log) { blockNumbers[log.blockNumber.toString()] = log.blockNumber; });
