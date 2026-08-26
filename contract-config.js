@@ -33,10 +33,18 @@ window.CONTRACT_CONFIG = {
   // Public RPC endpoints, no API key required. Listed as a fallback
   // chain (viem tries them in order and moves on if one errors or times
   // out) so a single provider having a bad day doesn't take the site down.
+  //
+  // rpc.ankr.com/eth used to work unauthenticated but now rejects every
+  // request with "Unauthorized: you must authenticate with an API key" —
+  // it was previously last in this list, so once it (correctly) stopped
+  // working, any request that fell through to it (e.g. because the first
+  // two providers were rate-limited under a burst of parallel calls) hard
+  // failed instead of actually falling back. Dropped it in favor of
+  // eth.merkle.io, another no-key-required public endpoint.
   rpcUrls: [
     "https://ethereum-rpc.publicnode.com",
     "https://eth.llamarpc.com",
-    "https://rpc.ankr.com/eth"
+    "https://eth.merkle.io"
   ],
 
   // Public IPFS gateways (same fallback idea) used to resolve ipfs://

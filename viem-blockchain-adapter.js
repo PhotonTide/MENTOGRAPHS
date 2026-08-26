@@ -150,7 +150,7 @@ ViemBlockchainAdapter.prototype._buildIndex = function () {
 
     // Cap how many windows are in flight at once rather than firing every
     // chunk simultaneously against free public endpoints.
-    var CONCURRENCY = 6;
+    var CONCURRENCY = 3;
     var results = [];
     var i = 0;
     function next() {
