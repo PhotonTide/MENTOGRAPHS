@@ -226,6 +226,13 @@
     color: #d8d2c4; font-size: 12px; padding: 8px 6px; cursor: pointer; border-radius: 3px;
   }
   .wallet-token-row:hover { background: rgba(203,185,143,0.1); color: #eae4d8; }
+  .wallet-disconnect-btn {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    border-top: 1px solid rgba(203,185,143,0.14); margin-top: 8px; padding: 10px 6px 4px;
+    color: #a89a7a; font-size: 11px; letter-spacing: 0.03em; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .wallet-disconnect-btn:hover { color: #eae4d8; }
 
   /* --- full-screen overlays (About / Gallery) --- */
   .overlay {
@@ -347,6 +354,7 @@
     <button id="btn-wallet">Connect Wallet</button>
     <div id="wallet-dropdown">
       <div id="wallet-dropdown-list" class="wallet-empty">Connect a wallet to see what you own.</div>
+      <button id="wallet-disconnect" class="wallet-disconnect-btn">Disconnect</button>
     </div>
   </div>
 </div>
@@ -2446,11 +2454,60 @@ function onWalletConnected(address) {
   return refreshOwnedTokens();
 }
 
+// Plain eth_requestAccounts only shows the wallet's approval popup the
+// very first time a site asks — after that, an already-authorized wallet
+// just returns the account silently. Asking for a fresh permission first
+// makes the approval prompt show up on every connect (matches what people
+// expect from "Connect Wallet"), while still working with wallets that
+// don't support the permissions API by falling back to the plain request.
+function requestWalletAccounts() {
+  return window.ethereum.request({
+    method: "wallet_requestPermissions",
+    params: [{ eth_accounts: {} }]
+  }).then(function() {
+    return window.ethereum.request({ method: "eth_requestAccounts" });
+  }).catch(function(err) {
+    if (err && err.code === -32601) {
+      // Wallet doesn't implement wallet_requestPermissions — fall back to
+      // the plain request, which still prompts on a first-ever connect.
+      return window.ethereum.request({ method: "eth_requestAccounts" });
+    }
+    throw err; // a real rejection (or other error) — don't paper over it
+  });
+}
+
+// Clears the connected wallet on this site. Also asks the wallet to
+// forget its permission for this site (where supported) so the next
+// "Connect Wallet" click shows the approval prompt again rather than
+// silently reconnecting to whatever account was last used.
+function disconnectWallet() {
+  var cleanup = function() {
+    walletAddress = null;
+    ownedTokenIds = [];
+    renderWalletButton();
+    renderWalletDropdown();
+    toggleWalletDropdown(false);
+  };
+  if (window.ethereum && window.ethereum.request) {
+    window.ethereum.request({
+      method: "wallet_revokePermissions",
+      params: [{ eth_accounts: {} }]
+    }).catch(function() { /* not every wallet supports revoking — that's fine, we still clear our own state */ })
+      .then(cleanup);
+  } else {
+    cleanup();
+  }
+}
+document.getElementById("wallet-disconnect").addEventListener("click", function(e) {
+  e.stopPropagation();
+  disconnectWallet();
+});
+
 document.getElementById("btn-wallet").addEventListener("click", function() {
   if (walletAddress) { toggleWalletDropdown(); return; }
 
   if (window.ethereum) {
-    window.ethereum.request({ method: "eth_requestAccounts" }).then(function(accounts) {
+    requestWalletAccounts().then(function(accounts) {
       return onWalletConnected(accounts[0]);
     }).then(function() {
       toggleWalletDropdown(true);
