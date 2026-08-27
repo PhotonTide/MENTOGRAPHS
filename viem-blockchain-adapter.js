@@ -253,19 +253,54 @@ ViemBlockchainAdapter.prototype.getTokenState = function (tokenId) {
   });
 };
 
+// Picks out an Alchemy JSON-RPC URL from the configured provider list, if
+// any, so getTokensOwnedBy can hit Alchemy's NFT REST API directly rather
+// than depending on the (much more fragile, provider-dependent) manual
+// Transfer-log scan below. Alchemy's REST endpoints are built and
+// documented for exactly this — being called straight from a browser
+// frontend — unlike raw eth_getLogs, which is where every failure in this
+// site's history has come from (auth walls, missing CORS headers, archive
+// restrictions on free tiers, etc. — see contract-config.js).
+function getAlchemyRestBase() {
+  var url = (config.rpcUrls || []).filter(function (u) { return u.indexOf("g.alchemy.com") !== -1; })[0];
+  return url || null;
+}
+
 ViemBlockchainAdapter.prototype.getTokensOwnedBy = function (address) {
   var self = this;
   if (!address) return Promise.resolve([]);
   var addr = String(address).toLowerCase();
-  return this.ready.then(function () {
-    var out = [];
-    Object.keys(self.index).forEach(function (tokenId) {
-      var rec = self.index[tokenId];
-      if (rec.owner && String(rec.owner).toLowerCase() === addr && !rec.burned) out.push(Number(tokenId));
+
+  function fromTransferLogIndex() {
+    return self.ready.then(function () {
+      var out = [];
+      Object.keys(self.index).forEach(function (tokenId) {
+        var rec = self.index[tokenId];
+        if (rec.owner && String(rec.owner).toLowerCase() === addr && !rec.burned) out.push(Number(tokenId));
+      });
+      out.sort(function (a, b) { return a - b; });
+      return out;
     });
-    out.sort(function (a, b) { return a - b; });
-    return out;
-  });
+  }
+
+  var alchemyBase = getAlchemyRestBase();
+  if (!alchemyBase) return fromTransferLogIndex();
+
+  var url = alchemyBase + "/getNFTs/?owner=" + encodeURIComponent(address) + "&contractAddresses[]=" + encodeURIComponent(config.address);
+  return fetch(url)
+    .then(function (res) {
+      if (!res.ok) throw new Error("Alchemy getNFTs responded with " + res.status);
+      return res.json();
+    })
+    .then(function (data) {
+      var out = (data.ownedNfts || []).map(function (nft) { return Number(nft.id.tokenId); });
+      out.sort(function (a, b) { return a - b; });
+      return out;
+    })
+    .catch(function (err) {
+      console.warn("ViemBlockchainAdapter: Alchemy getNFTs failed, falling back to the transfer-log index:", err);
+      return fromTransferLogIndex();
+    });
 };
 
 // Real artwork, resolved live from the chain. Returns null (never throws)
