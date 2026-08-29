@@ -1021,6 +1021,35 @@ function drawPreRevealImage(canvasCtx, w, h) {
    same rule: this only ever touches the popup detail view, never the
    ambient Field canvas, which stays abstract/DNA-driven for every
    fragment regardless of whether it has a real image yet. */
+/* Global cap on how many real-artwork image fetches are ever in flight at
+   once, across every token and every gateway attempt on the page. Only
+   one of the three configured IPFS gateways actually serves this
+   collection's files at all (see contract-config.js) — and being the
+   ONLY one that works, it visibly can't keep up when dozens of requests
+   hit it at the same moment. That's exactly what the Gallery does on
+   open: its IntersectionObserver alone can mark 20-30+ visible cells for
+   loading at once, each firing its own image fetch — so nearly all of
+   them were timing out or failing simply from competing with each other,
+   not because the gateway itself is unreliable. Funneling every fetch
+   through a small shared queue means a handful load steadily instead of
+   many losing a race against each other. */
+var MAX_CONCURRENT_IMAGE_FETCHES = 4;
+var activeImageFetches = 0;
+var imageFetchQueue = [];
+function runOrQueueImageFetch(start) {
+  if (activeImageFetches < MAX_CONCURRENT_IMAGE_FETCHES) {
+    activeImageFetches++;
+    start();
+  } else {
+    imageFetchQueue.push(start);
+  }
+}
+function releaseImageFetchSlot() {
+  activeImageFetches--;
+  var next = imageFetchQueue.shift();
+  if (next) { activeImageFetches++; next(); }
+}
+
 var artworkImageCache = {};
 function getArtworkImageEntry(a) {
   if (!a.realImage) return null;
@@ -1061,8 +1090,15 @@ function getArtworkImageEntry(a) {
     pending++;
     latest = i;
     var img = new Image();
+    var slotReleased = false;
+    function releaseSlot() {
+      if (slotReleased) return;
+      slotReleased = true;
+      releaseImageFetchSlot();
+    }
     img.onload = function () {
       pending--;
+      releaseSlot();
       if (entry.loaded) return; // a faster gateway already won
       entry.img = img;
       entry.loaded = true;
@@ -1070,6 +1106,7 @@ function getArtworkImageEntry(a) {
     };
     img.onerror = function () {
       pending--;
+      releaseSlot();
       console.warn("Could not load " + candidates[i] + " for token #" + a.tokenId + " (gateway " + (i + 1) + "/" + candidates.length + ")");
       if (!entry.loaded && pending === 0 && started >= candidates.length) {
         console.warn("All " + candidates.length + " gateway(s) failed for token #" + a.tokenId + " — falling back to the abstract rendering.");
@@ -1078,14 +1115,21 @@ function getArtworkImageEntry(a) {
       // than sit out the rest of the timeout window doing nothing.
       advanceIfLatest(i);
     };
-    img.src = candidates[i];
-    if (i + 1 < candidates.length) {
-      timer = setTimeout(function () {
-        if (entry.loaded) return;
-        console.warn("Gateway " + (i + 1) + "/" + candidates.length + " for token #" + a.tokenId + " hasn't responded within " + GATEWAY_TIMEOUT_MS + "ms — starting the next one too (this one keeps trying in the background).");
-        startAttempt(i + 1);
-      }, GATEWAY_TIMEOUT_MS);
-    }
+    // The actual network request (and this attempt's timeout window) only
+    // starts once a global fetch slot is free — see MAX_CONCURRENT_IMAGE_FETCHES
+    // above. Bookkeeping (started/pending/latest) above already happened so
+    // a queued attempt is still correctly "the latest" if something needs
+    // to check while it's waiting.
+    runOrQueueImageFetch(function () {
+      img.src = candidates[i];
+      if (i + 1 < candidates.length) {
+        timer = setTimeout(function () {
+          if (entry.loaded) return;
+          console.warn("Gateway " + (i + 1) + "/" + candidates.length + " for token #" + a.tokenId + " hasn't responded within " + GATEWAY_TIMEOUT_MS + "ms — starting the next one too (this one keeps trying in the background).");
+          startAttempt(i + 1);
+        }, GATEWAY_TIMEOUT_MS);
+      }
+    });
   }
   startAttempt(0);
 
