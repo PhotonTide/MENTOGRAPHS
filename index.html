@@ -1026,10 +1026,69 @@ function getArtworkImageEntry(a) {
   if (!a.realImage) return null;
   var entry = artworkImageCache[a.tokenId];
   if (entry) return entry;
-  entry = { img: new Image(), loaded: false };
-  entry.img.onload = function() { entry.loaded = true; };
-  entry.img.onerror = function() { console.warn("Could not load " + a.realImage + " for token #" + a.tokenId + " — falling back to the abstract rendering."); };
-  entry.img.src = a.realImage;
+  // Try every configured gateway for this image (a.realImageCandidates),
+  // not just the first one — a single dead IPFS gateway shouldn't leave a
+  // revealed piece stuck on the abstract rendering when another configured
+  // gateway would serve it fine. Falls back to just [a.realImage] for
+  // non-IPFS sources (e.g. the local EMBEDDED_IMAGE_FILES preview images)
+  // that never had a candidate list to begin with.
+  //
+  // A gateway that's dead outright fails an <img> load almost instantly,
+  // but a gateway that HAS the content just needs longer to serve it, and
+  // one that doesn't but hasn't given up yet can sit there for 30+ seconds
+  // before erroring — actually observed against this contract's real
+  // artwork CIDs. So each candidate gets a bounded head start
+  // (GATEWAY_TIMEOUT_MS): if it hasn't loaded by then, the NEXT candidate
+  // starts loading too, in its own <img>, without cancelling the slow one
+  // — it might still be the one that finishes first. Whichever <img> loads
+  // first becomes entry.img; the rest are left to resolve or fail unused.
+  var GATEWAY_TIMEOUT_MS = 8000;
+  var candidates = (a.realImageCandidates && a.realImageCandidates.length) ? a.realImageCandidates : [a.realImage];
+  entry = { img: null, loaded: false };
+  var pending = 0, started = 0, timer = null, latest = -1;
+
+  function advanceIfLatest(i) {
+    // Only the most-recently-started attempt should trigger moving on —
+    // an older, already-superseded attempt erroring out late shouldn't
+    // restart a candidate that's already loading.
+    if (i !== latest || entry.loaded) return;
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (i + 1 < candidates.length) startAttempt(i + 1);
+  }
+
+  function startAttempt(i) {
+    started++;
+    pending++;
+    latest = i;
+    var img = new Image();
+    img.onload = function () {
+      pending--;
+      if (entry.loaded) return; // a faster gateway already won
+      entry.img = img;
+      entry.loaded = true;
+      if (timer) { clearTimeout(timer); timer = null; }
+    };
+    img.onerror = function () {
+      pending--;
+      console.warn("Could not load " + candidates[i] + " for token #" + a.tokenId + " (gateway " + (i + 1) + "/" + candidates.length + ")");
+      if (!entry.loaded && pending === 0 && started >= candidates.length) {
+        console.warn("All " + candidates.length + " gateway(s) failed for token #" + a.tokenId + " — falling back to the abstract rendering.");
+      }
+      // A fast failure (dead gateway) should move on immediately rather
+      // than sit out the rest of the timeout window doing nothing.
+      advanceIfLatest(i);
+    };
+    img.src = candidates[i];
+    if (i + 1 < candidates.length) {
+      timer = setTimeout(function () {
+        if (entry.loaded) return;
+        console.warn("Gateway " + (i + 1) + "/" + candidates.length + " for token #" + a.tokenId + " hasn't responded within " + GATEWAY_TIMEOUT_MS + "ms — starting the next one too (this one keeps trying in the background).");
+        startAttempt(i + 1);
+      }, GATEWAY_TIMEOUT_MS);
+    }
+  }
+  startAttempt(0);
+
   artworkImageCache[a.tokenId] = entry;
   return entry;
 }
@@ -2090,6 +2149,7 @@ function openArtwork(a) {
       if (requestId !== chainRequestSeq || !activeArtwork || activeArtwork.tokenId !== tokenId) return;
       if (meta && meta.image && a.realImage !== meta.image) {
         a.realImage = meta.image;
+        a.realImageCandidates = meta.imageCandidates || [meta.image];
         delete artworkImageCache[tokenId]; // force a fresh Image() load with the new src
       }
       // Official on-chain traits (from tokenURI's metadata attributes), not
@@ -2344,6 +2404,7 @@ function paintGalleryCell(a) {
   chainAdapter.getTokenMetadata(a.tokenId).then(function(meta) {
     if (!meta || !meta.image) return;
     a.realImage = meta.image;
+    a.realImageCandidates = meta.imageCandidates || [meta.image];
     delete artworkImageCache[a.tokenId];
     var entry = getArtworkImageEntry(a);
     var tries = 0;

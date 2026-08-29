@@ -65,6 +65,24 @@ function resolveContentUri(uri) {
   return uri; // already http(s), or a data: URI — fetch()/Image() can use either directly
 }
 
+// Same idea as resolveContentUri(), but returns every gateway URL worth
+// trying, in order, instead of committing to just the first one. The JSON
+// metadata fetch (fetchWithGatewayFallback, below) already retries across
+// all configured gateways when one is down — this gives image loading
+// (an <img>, not a fetch()) the same list to retry against, since a single
+// dead gateway shouldn't leave a revealed piece stuck on the abstract
+// rendering when the other configured gateways would have served it fine.
+function resolveContentUriCandidates(uri) {
+  if (!uri) return [];
+  if (uri.indexOf("ipfs://") === 0) {
+    var path = uri.slice("ipfs://".length);
+    var gateways = (config.ipfsGateways && config.ipfsGateways.length) ? config.ipfsGateways : ["https://ipfs.io/ipfs/"];
+    return gateways.map(function (gw) { return gw + path; });
+  }
+  var single = resolveContentUri(uri);
+  return single ? [single] : [];
+}
+
 // Tries each configured IPFS gateway in turn for a given ipfs:// URI,
 // rather than committing to whichever one resolveContentUri() picked
 // first — a single flaky gateway shouldn't make revealed art disappear.
@@ -98,28 +116,139 @@ function ViemBlockchainAdapter() {
 ViemBlockchainAdapter.prototype = Object.create(window.BlockchainAdapter.prototype);
 ViemBlockchainAdapter.prototype.constructor = ViemBlockchainAdapter;
 
-ViemBlockchainAdapter.prototype._buildIndex = function () {
-  var self = this;
-  if (!TRANSFER_EVENT) {
-    console.warn("ViemBlockchainAdapter: no Transfer event in CONTRACT_CONFIG.abi");
-    return Promise.resolve();
+// Alchemy's alchemy_getAssetTransfers is a proper indexed API (paginated by
+// pageKey, no block-range-per-call limit) rather than a raw log scan, and
+// withMetadata:true hands back each transfer's block timestamp inline — no
+// separate getBlock() round trip needed. This is the primary path whenever
+// an Alchemy URL is configured (see getAlchemyRestBase, below).
+function fetchAlchemyTransfers(alchemyBase) {
+  var MAX_COUNT_HEX = "0x3e8"; // 1000 per page, Alchemy's max
+  function page(pageKey, acc) {
+    var params = {
+      fromBlock: config.deployBlock ? ("0x" + BigInt(config.deployBlock).toString(16)) : "0x0",
+      toBlock: "latest",
+      contractAddresses: [config.address],
+      category: ["erc721"],
+      withMetadata: true,
+      maxCount: MAX_COUNT_HEX
+    };
+    if (pageKey) params.pageKey = pageKey;
+    return fetch(alchemyBase, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "alchemy_getAssetTransfers", params: [params] })
+    }).then(function (res) { return res.json(); }).then(function (json) {
+      if (json.error) throw new Error("alchemy_getAssetTransfers: " + json.error.message);
+      var transfers = (json.result && json.result.transfers) || [];
+      var combined = acc.concat(transfers);
+      return (json.result && json.result.pageKey) ? page(json.result.pageKey, combined) : combined;
+    });
+  }
+  return page(null, []).then(function (transfers) {
+    return transfers.map(function (tr) {
+      return {
+        tokenId: BigInt(tr.erc721TokenId || tr.tokenId).toString(),
+        from: tr.from,
+        to: tr.to,
+        blockNumber: BigInt(tr.blockNum),
+        txHash: tr.hash,
+        date: (tr.metadata && tr.metadata.blockTimestamp) ? tr.metadata.blockTimestamp.slice(0, 10) : null
+      };
+    });
+  });
+}
+
+// Fallback for when no Alchemy URL is configured at all (contract-config.js
+// changes providers, say). Raw eth_getLogs, chunked and retried.
+//
+// Public RPC endpoints commonly cap how many blocks a single eth_getLogs
+// call can span, and the caps vary by provider — and can be far stricter
+// than "commonly" suggests (this contract's own Alchemy key, for instance,
+// has been seen enforcing a hard 10-block ceiling on eth_getLogs regardless
+// of the range requested, a couple of orders of magnitude below the usual
+// free-tier limit, likely a plan/quota issue worth checking on Alchemy's
+// dashboard rather than something this code can fix). A single unbounded
+// getLogs call that happens to work on day one can start silently failing
+// later — the whole index falls back to empty, which reads on-page as
+// "not yet minted" for every token, even though totalSupply() (a separate,
+// single-block call) keeps working fine. So: paginate in fixed-size
+// windows, and if a window is rejected, parse the provider's own stated
+// cap out of the error message (most providers, Alchemy included, state it
+// directly) and re-chunk to exactly that size instead of blindly bisecting
+// — bisecting a 15000-block window by half only twice (the old retry
+// budget) never gets anywhere near a 10-block requirement.
+function fetchRawLogTransfers() {
+  var CHUNK_SIZE = BigInt(15000);
+  var knownCap = null; // learned from a provider's rejection message, once
+
+  function parseCapFromError(err) {
+    var msg = (err && err.message) || String(err);
+    var m = /up to a?n? ?(\d+) block/i.exec(msg);
+    return m ? BigInt(m[1]) : null;
   }
 
-  // Public RPC endpoints commonly cap how many blocks a single eth_getLogs
-  // call can span, and the caps vary by provider and aren't documented
-  // consistently. deployBlock..latest only grows as the collection ages,
-  // so a single unbounded getLogs call that happens to work on day one can
-  // start silently failing later — the whole index falls back to empty,
-  // which reads on-page as "no Mentographs found" for every wallet, even
-  // though totalSupply() (a separate, single-block call) keeps working
-  // fine. Paginating in fixed-size windows, with retry-by-bisection on any
-  // window a given provider rejects, avoids that failure mode entirely.
-  // Down to a single working provider (see contract-config.js), fewer and
-  // bigger requests beats many small ones — publicnode 403'd under the
-  // burst of ~30 parallel calls the smaller chunk size produced. A wider
-  // window means far fewer total requests; retry-by-bisection still
-  // kicks in per-window if any individual one is still rejected.
-  var CHUNK_SIZE = BigInt(15000);
+  function fetchWindow(fromB, toB) {
+    return client.getLogs({
+      address: config.address,
+      event: TRANSFER_EVENT,
+      fromBlock: fromB,
+      toBlock: toB
+    });
+  }
+
+  // Splits [fromB, toB] into consecutive windows of at most capSize blocks
+  // and fetches them with modest concurrency — once a provider has told us
+  // its real ceiling, requests below it are cheap and reliable, so more of
+  // them in flight at once is what keeps a ~70k-block history from taking
+  // many minutes on a fresh page load.
+  function fetchInFixedWindows(fromB, toB, capSize) {
+    var windows = [];
+    for (var start = fromB; start <= toB; start += capSize) {
+      var end = start + capSize - BigInt(1);
+      if (end > toB) end = toB;
+      windows.push([start, end]);
+    }
+    var CONCURRENCY = 10;
+    var results = [];
+    var i = 0;
+    function next() {
+      if (i >= windows.length) return Promise.resolve();
+      var idx = i++;
+      return fetchWindow(windows[idx][0], windows[idx][1]).catch(function (err) {
+        console.warn("ViemBlockchainAdapter: giving up on block range " + windows[idx][0] + "-" + windows[idx][1] + ":", err);
+        return [];
+      }).then(function (logs) {
+        results[idx] = logs;
+        return next();
+      });
+    }
+    var workers = [];
+    for (var w = 0; w < CONCURRENCY && w < windows.length; w++) workers.push(next());
+    return Promise.all(workers).then(function () { return [].concat.apply([], results); });
+  }
+
+  function fetchRange(fromB, toB, attemptsLeft) {
+    if (knownCap !== null && (toB - fromB + BigInt(1)) > knownCap) {
+      return fetchInFixedWindows(fromB, toB, knownCap);
+    }
+    return fetchWindow(fromB, toB).catch(function (err) {
+      var cap = parseCapFromError(err);
+      if (cap !== null) {
+        knownCap = knownCap === null ? cap : (cap < knownCap ? cap : knownCap);
+        return fetchInFixedWindows(fromB, toB, knownCap);
+      }
+      if (attemptsLeft <= 0 || toB <= fromB) {
+        console.warn("ViemBlockchainAdapter: giving up on block range " + fromB + "-" + toB + " after retries:", err);
+        return [];
+      }
+      // Unrecognized error shape — fall back to bisection as a safety net.
+      var mid = fromB + (toB - fromB) / BigInt(2);
+      return Promise.all([
+        fetchRange(fromB, mid, attemptsLeft - 1),
+        fetchRange(mid + BigInt(1), toB, attemptsLeft - 1)
+      ]).then(function (parts) { return parts[0].concat(parts[1]); });
+    });
+  }
 
   return client.getBlockNumber().then(function (latest) {
     var fromBlock = BigInt(config.deployBlock || 0);
@@ -129,34 +258,8 @@ ViemBlockchainAdapter.prototype._buildIndex = function () {
       if (end > latest) end = latest;
       ranges.push([start, end]);
     }
-
-    function fetchRange(fromB, toB, attemptsLeft) {
-      return client.getLogs({
-        address: config.address,
-        event: TRANSFER_EVENT,
-        fromBlock: fromB,
-        toBlock: toB
-      }).catch(function (err) {
-        if (attemptsLeft <= 0 || toB <= fromB) {
-          console.warn("ViemBlockchainAdapter: giving up on block range " + fromB + "-" + toB + " after retries:", err);
-          return [];
-        }
-        // Split the offending window in half and retry each half — if the
-        // failure was a range-too-large rejection from one provider, a
-        // narrower window (possibly served by a different fallback
-        // provider) usually succeeds.
-        var mid = fromB + (toB - fromB) / BigInt(2);
-        return Promise.all([
-          fetchRange(fromB, mid, attemptsLeft - 1),
-          fetchRange(mid + BigInt(1), toB, attemptsLeft - 1)
-        ]).then(function (parts) { return parts[0].concat(parts[1]); });
-      });
-    }
-
-    // Sequential rather than parallel now that there's only one provider
-    // to be gentle with — spreads requests out over their natural
-    // round-trip time instead of bursting several at once.
-    var CONCURRENCY = 1;
+    // Sequential across top-level chunks — gentle by default; the
+    // concurrency bump only kicks in once fetchInFixedWindows takes over.
     var results = [];
     var i = 0;
     function next() {
@@ -167,11 +270,7 @@ ViemBlockchainAdapter.prototype._buildIndex = function () {
         return next();
       });
     }
-    var workers = [];
-    for (var w = 0; w < CONCURRENCY && w < ranges.length; w++) workers.push(next());
-    return Promise.all(workers).then(function () {
-      return [].concat.apply([], results);
-    });
+    return next().then(function () { return [].concat.apply([], results); });
   }).then(function (logs) {
     var blockNumbers = {};
     logs.forEach(function (log) { blockNumbers[log.blockNumber.toString()] = log.blockNumber; });
@@ -186,31 +285,52 @@ ViemBlockchainAdapter.prototype._buildIndex = function () {
     })).then(function (pairs) {
       var timestamps = {};
       pairs.forEach(function (p) { timestamps[p[0]] = p[1]; });
-
-      logs.forEach(function (log) {
-        var tokenId = log.args.tokenId.toString();
-        var rec = self.index[tokenId] || (self.index[tokenId] = { transferHistory: [] });
+      return logs.map(function (log) {
         var ts = timestamps[log.blockNumber.toString()];
-        rec.transferHistory.push({
+        return {
+          tokenId: log.args.tokenId.toString(),
           from: log.args.from,
           to: log.args.to,
           blockNumber: log.blockNumber,
           txHash: log.transactionHash,
           date: ts ? new Date(ts * 1000).toISOString().slice(0, 10) : null
-        });
+        };
       });
+    });
+  });
+}
 
-      Object.keys(self.index).forEach(function (tokenId) {
-        var rec = self.index[tokenId];
-        rec.transferHistory.sort(function (a, b) { return Number(a.blockNumber - b.blockNumber); });
-        var mintEntry = rec.transferHistory.filter(function (tr) { return tr.from.toLowerCase() === ZERO_ADDRESS; })[0];
-        var last = rec.transferHistory[rec.transferHistory.length - 1];
-        rec.owner = last.to;
-        rec.originalMinter = mintEntry ? mintEntry.to : rec.transferHistory[0].to;
-        rec.mintDate = mintEntry ? mintEntry.date : rec.transferHistory[0].date;
-        rec.mintBlock = mintEntry ? mintEntry.blockNumber : rec.transferHistory[0].blockNumber;
-        rec.burned = BURN_ADDRESSES.indexOf(last.to.toLowerCase()) !== -1;
-      });
+ViemBlockchainAdapter.prototype._buildIndex = function () {
+  var self = this;
+  if (!TRANSFER_EVENT) {
+    console.warn("ViemBlockchainAdapter: no Transfer event in CONTRACT_CONFIG.abi");
+    return Promise.resolve();
+  }
+
+  var alchemyBase = getAlchemyRestBase();
+  var transfersPromise = alchemyBase
+    ? fetchAlchemyTransfers(alchemyBase).catch(function (err) {
+        console.warn("ViemBlockchainAdapter: alchemy_getAssetTransfers failed, falling back to a raw eth_getLogs scan:", err);
+        return fetchRawLogTransfers();
+      })
+    : fetchRawLogTransfers();
+
+  return transfersPromise.then(function (transfers) {
+    transfers.forEach(function (tr) {
+      var rec = self.index[tr.tokenId] || (self.index[tr.tokenId] = { transferHistory: [] });
+      rec.transferHistory.push(tr);
+    });
+
+    Object.keys(self.index).forEach(function (tokenId) {
+      var rec = self.index[tokenId];
+      rec.transferHistory.sort(function (a, b) { return Number(a.blockNumber - b.blockNumber); });
+      var mintEntry = rec.transferHistory.filter(function (tr) { return tr.from.toLowerCase() === ZERO_ADDRESS; })[0];
+      var last = rec.transferHistory[rec.transferHistory.length - 1];
+      rec.owner = last.to;
+      rec.originalMinter = mintEntry ? mintEntry.to : rec.transferHistory[0].to;
+      rec.mintDate = mintEntry ? mintEntry.date : rec.transferHistory[0].date;
+      rec.mintBlock = mintEntry ? mintEntry.blockNumber : rec.transferHistory[0].blockNumber;
+      rec.burned = BURN_ADDRESSES.indexOf(last.to.toLowerCase()) !== -1;
     });
   }).catch(function (err) {
     console.warn("ViemBlockchainAdapter: failed to build the transfer-log index (falling back to empty / not-yet-minted for everything):", err);
@@ -334,8 +454,9 @@ ViemBlockchainAdapter.prototype.getTokenMetadata = function (tokenId) {
       return fetchWithGatewayFallback(uri).then(function (res) { return res.json(); });
     })
     .then(function (json) {
-      var image = json.image ? resolveContentUri(json.image) : null;
-      var out = image ? { image: image, name: json.name || null, attributes: json.attributes || [] } : null;
+      var imageCandidates = json.image ? resolveContentUriCandidates(json.image) : [];
+      var image = imageCandidates.length ? imageCandidates[0] : null;
+      var out = image ? { image: image, imageCandidates: imageCandidates, name: json.name || null, attributes: json.attributes || [] } : null;
       self.metadataCache[key] = out;
       return out;
     })
