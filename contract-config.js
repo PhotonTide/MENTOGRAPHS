@@ -46,11 +46,26 @@ window.CONTRACT_CONFIG = {
   ],
 
   // Public IPFS gateways (same fallback idea) used to resolve ipfs://
-  // tokenURIs and ipfs:// image fields to fetchable https URLs.
+  // tokenURIs and ipfs:// image fields to fetchable https URLs. Ordered by
+  // measured reliability against this contract's own actual CIDs, not
+  // alphabetically or by popularity: repeated live tests (both the JSON
+  // metadata and the real image files) show ipfs.io and dweb.link failing
+  // outright, every time, in well under a second — dead weight this
+  // collection's content just doesn't route through — while
+  // gateway.pinata.cloud is the one that consistently, eventually serves
+  // it (anywhere from ~2s to ~30s+ depending on the file, since it's
+  // fetching-and-pinning on demand rather than serving from a hot cache).
+  // Pinata goes first so real art shows up as fast as this collection's
+  // content can actually be fetched, instead of waiting out two gateways
+  // that have never once succeeded before even starting the one that
+  // does. The dead ones stay listed as long-shot fallbacks in case that
+  // ever changes — retrying them costs nothing since a fast failure just
+  // starts the next candidate immediately (see viem-blockchain-adapter.js
+  // and getArtworkImageEntry in index.html).
   ipfsGateways: [
-    "https://ipfs.io/ipfs/",
+    "https://gateway.pinata.cloud/ipfs/",
     "https://dweb.link/ipfs/",
-    "https://gateway.pinata.cloud/ipfs/"
+    "https://ipfs.io/ipfs/"
   ],
 
   // Trimmed ABI — only what this site actually calls or listens for.
