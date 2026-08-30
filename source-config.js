@@ -11,10 +11,13 @@
    after deployment anyway.
 
    LIVE: the Source contract is deployed at the address below (mainnet,
-   deployed via Remix from account 0xa90dc6d356b622b9783f5020722e6f92b663438f,
-   tx 0x92fdf...95d01, block 25866381). The ABI below already matches the
-   MentographsSource.sol contract that was actually deployed — nothing
-   else needs to change.
+   deployed via Remix from account 0xa90dc6d356b622b9783f5020722e6f92b663438f).
+   This is the SECOND deployment — the first one (0x0b69729f75de26817
+   9f5ddc1738216a804154e6e) shipped without a tokenURI() function, so it
+   would have shown up blank in wallets/OpenSea. Nobody ever claimed it,
+   so it was simply abandoned rather than migrated. This address is the
+   real one; the ABI below already matches the MentographsSource.sol
+   contract that was actually deployed — nothing else needs to change.
 
    Everything else about how this site reads the deployed contract
    (viem, public RPC, no server) matches contract-config.js — see that
@@ -22,7 +25,7 @@
    --------------------------------------------------------------------- */
 window.SOURCE_CONFIG = {
   // The deployed Source contract on Ethereum mainnet.
-  address: "0x0b69729f75de268179f5ddc1738216a804154e6e",
+  address: "0xbd48c1f92817599c5544b33f70ccfc07c2253c63",
 
   // Same chain as Mentographs itself.
   chainId: 1,
@@ -39,6 +42,7 @@ window.SOURCE_CONFIG = {
     { "inputs": [], "name": "currentHolder", "outputs": [{ "internalType": "address", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
     { "inputs": [], "name": "currentHolderSince", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
     { "inputs": [], "name": "claimSource", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+    { "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }], "name": "tokenURI", "outputs": [{ "internalType": "string", "name": "", "type": "string" }], "stateMutability": "pure", "type": "function" },
     {
       "anonymous": false,
       "inputs": [
