@@ -29,6 +29,7 @@
    hand, before or after OpenSea's Reveal step.
    --------------------------------------------------------------------- */
 import { createPublicClient, http, fallback } from "https://esm.sh/viem@2.21.0?bundle";
+import { mainnet } from "https://esm.sh/viem@2.21.0/chains?bundle";
 
 (function () {
 
@@ -51,6 +52,19 @@ var client = createPublicClient({
   },
   transport: fallback((config.rpcUrls || []).map(function (url) { return http(url); }))
 });
+
+// A second client, specifically for ENS reverse lookups (Dominion page
+// wallet display), built against viem's own `mainnet` chain definition
+// rather than the bare-bones custom `chain` object above — ENS resolution
+// needs the well-known ENS Registry / Universal Resolver contract
+// addresses, and those ship correctly (and get kept up to date) inside
+// viem's chain definitions rather than something worth hand-copying here.
+// Only meaningful on mainnet; on any other chainId this collection isn't
+// deployed to, ENS lookups are simply skipped (see getEnsName below).
+var ensClient = (config.chainId === 1) ? createPublicClient({
+  chain: mainnet,
+  transport: fallback((config.rpcUrls || []).map(function (url) { return http(url); }))
+}) : null;
 
 function resolveContentUri(uri) {
   if (!uri) return null;
@@ -111,6 +125,7 @@ function ViemBlockchainAdapter() {
   this.index = {};
   this.metadataCache = {};
   this.tokenURICache = {};
+  this.ensCache = {};
   this.ready = this._buildIndex();
 }
 ViemBlockchainAdapter.prototype = Object.create(window.BlockchainAdapter.prototype);
@@ -421,6 +436,47 @@ ViemBlockchainAdapter.prototype.getTokensOwnedBy = function (address) {
       console.warn("ViemBlockchainAdapter: Alchemy getNFTs failed, falling back to the transfer-log index:", err);
       return fromTransferLogIndex();
     });
+};
+
+// Powers the Dominion page. Reuses the same in-memory transfer-log index
+// everything else on the site already relies on — no extra RPC calls —
+// aggregated per current owner and sorted highest-holding first. Burned
+// tokens don't count toward anyone's total.
+ViemBlockchainAdapter.prototype.getHoldingsLeaderboard = function () {
+  var self = this;
+  return this.ready.then(function () {
+    var counts = {};
+    Object.keys(self.index).forEach(function (tokenId) {
+      var rec = self.index[tokenId];
+      if (!rec.owner || rec.burned) return;
+      var addr = rec.owner.toLowerCase();
+      counts[addr] = (counts[addr] || 0) + 1;
+    });
+    var list = Object.keys(counts).map(function (address) { return { address: address, count: counts[address] }; });
+    list.sort(function (a, b) { return b.count - a.count; });
+    return list;
+  });
+};
+
+// Best-effort reverse ENS lookup for display purposes only (Dominion page
+// wallet names) — resolves to null, never throws, if there isn't one or
+// the lookup fails for any reason (unsupported RPC method, network
+// hiccup, etc.), and callers are expected to fall back to the shortened
+// address exactly as if this returned null normally.
+ViemBlockchainAdapter.prototype.getEnsName = function (address) {
+  if (!ensClient || !address) return Promise.resolve(null);
+  var key = String(address).toLowerCase();
+  if (this.ensCache[key] !== undefined) return Promise.resolve(this.ensCache[key]);
+  var self = this;
+  var p = ensClient.getEnsName({ address: address }).then(function (name) {
+    self.ensCache[key] = name || null;
+    return self.ensCache[key];
+  }).catch(function () {
+    self.ensCache[key] = null;
+    return null;
+  });
+  this.ensCache[key] = p; // cache the in-flight promise too, so concurrent callers share one lookup
+  return p;
 };
 
 // Real artwork, resolved live from the chain. Returns null (never throws)

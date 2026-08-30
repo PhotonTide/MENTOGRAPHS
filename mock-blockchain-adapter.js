@@ -79,5 +79,22 @@
   // behavior and callers fall back to the abstract rendering, exactly as
   // they should before anything is minted.
 
+  MockBlockchainAdapter.prototype.getHoldingsLeaderboard = function () {
+    var counts = {};
+    for (var id in this.byId) {
+      var rec = this.byId[id];
+      if (!rec.owner || rec.burned) continue;
+      var addr = String(rec.owner).toLowerCase();
+      counts[addr] = (counts[addr] || 0) + 1;
+    }
+    var list = Object.keys(counts).map(function (address) { return { address: address, count: counts[address] }; });
+    list.sort(function (a, b) { return b.count - a.count; });
+    return Promise.resolve(list);
+  };
+
+  // getEnsName is intentionally not overridden — no real chain to resolve
+  // names against before Aug 26, so it keeps the base class's "always
+  // null" behavior and callers fall back to the shortened address.
+
   window.MockBlockchainAdapter = MockBlockchainAdapter;
 })();

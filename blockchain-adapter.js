@@ -34,6 +34,15 @@
        object whenever this token's ownership changes on-chain while
        being watched. Feature-detected by callers (`if (adapter.watchToken)`)
        rather than assumed, since MockBlockchainAdapter doesn't implement it.
+     getHoldingsLeaderboard() -> Promise<Array<{ address, count }>>
+       Every current (non-burned) holder and how many Mentographs they
+       hold, sorted highest-count first. Powers the Dominion page. Default
+       implementation below returns an empty list; both real adapters
+       override it.
+     getEnsName(address) -> Promise<string | null>
+       Best-effort reverse ENS lookup for display purposes only — null
+       (never a thrown error) if there isn't one or the lookup fails.
+       Only ViemBlockchainAdapter overrides this for real.
    --------------------------------------------------------------------- */
 (function () {
   function BlockchainAdapter() {}
@@ -54,6 +63,12 @@
   };
   BlockchainAdapter.prototype.getTokenMetadata = function (_tokenId) {
     return Promise.resolve(null); // no real image support by default
+  };
+  BlockchainAdapter.prototype.getHoldingsLeaderboard = function () {
+    return Promise.resolve([]); // no live holdings data by default
+  };
+  BlockchainAdapter.prototype.getEnsName = function (_address) {
+    return Promise.resolve(null); // no ENS resolution by default
   };
   // watchToken intentionally left undefined on the prototype so
   // `adapter.watchToken` is a clean feature-detect for adapters that don't

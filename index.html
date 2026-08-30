@@ -189,28 +189,6 @@
   }
   #mint-counter .n { color: #cbb98f; }
 
-  /* --- add-to-calendar --- */
-  #cal-wrap { position: relative; }
-  #cal-toggle {
-    background: none; border: none; padding: 0; margin: 0; cursor: pointer;
-    color: #7d766a; font-size: 10.5px; letter-spacing: 0.04em; font-family: inherit;
-    text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
-    pointer-events: auto;
-  }
-  #cal-toggle:hover { color: #cbb98f; }
-  #cal-dropdown {
-    position: absolute; top: calc(100% + 8px); left: 0; min-width: 190px;
-    background: rgba(8,7,6,0.96); border: 1px solid rgba(203,185,143,0.22); border-radius: 4px;
-    padding: 6px; display: none; box-shadow: 0 12px 30px rgba(0,0,0,0.45); z-index: 5;
-    pointer-events: auto;
-  }
-  #cal-dropdown.open { display: block; }
-  #cal-dropdown a {
-    display: block; padding: 7px 8px; font-size: 11.5px; color: #d8d2c4; text-decoration: none;
-    border-radius: 3px; letter-spacing: 0.01em; white-space: nowrap;
-  }
-  #cal-dropdown a:hover { background: rgba(203,185,143,0.1); color: #eae4d8; }
-
   /* --- wallet dropdown --- */
   #wallet-wrap { position: relative; }
   #wallet-dropdown {
@@ -308,6 +286,102 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
+  /* --- Dominion nav badge: a small dot on the toolbar button, shown only
+     when the connected wallet is currently eligible to claim Source --- */
+  #btn-dominion { position: relative; }
+  #dominion-badge {
+    display: none; position: absolute; top: -4px; right: -4px; width: 8px; height: 8px;
+    border-radius: 50%; background: #cbb98f; box-shadow: 0 0 6px rgba(203,185,143,0.85);
+    animation: dominionPulse 2s ease-in-out infinite;
+  }
+  #dominion-badge.show { display: block; }
+  @keyframes dominionPulse { 0%, 100% { opacity: 0.6; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
+
+  /* --- Dominion page --- */
+  .dominion-panel { max-width: 720px; }
+  .dominion-intro { font-size: 13.5px; line-height: 1.7; color: #b3ac9e; margin: 0 0 28px; }
+  .dominion-loading, .dominion-empty {
+    font-size: 12.5px; color: #7d766a; padding: 10px 0; line-height: 1.6;
+  }
+  .dominion-status {
+    border: 1px solid rgba(203,185,143,0.18); border-radius: 5px; padding: 14px 16px;
+    margin: 0 0 26px; font-size: 12.5px; color: #b3ac9e; line-height: 1.6;
+  }
+  .dominion-status .who { color: #eae4d8; font-family: ui-monospace, monospace; font-size: 12px; }
+  #dominion-claim-btn {
+    margin-top: 10px; background: #cbb98f; border: 1px solid #cbb98f; color: #0a0806;
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;
+    padding: 9px 16px; border-radius: 3px; cursor: pointer;
+  }
+  #dominion-claim-btn:hover { background: #eae4d8; border-color: #eae4d8; }
+  #dominion-claim-btn:disabled {
+    background: none; border-color: rgba(203,185,143,0.25); color: #7d766a; cursor: default;
+  }
+  .dominion-rank-list { display: flex; flex-direction: column; gap: 10px; }
+  .dominion-row { display: grid; grid-template-columns: 30px 1fr; gap: 4px 12px; align-items: center; }
+  .dominion-row .medal {
+    font-size: 15px; text-align: center; grid-row: 1 / 3;
+  }
+  .dominion-row .who-line {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12.5px;
+  }
+  .dominion-row .addr { color: #d8d2c4; font-family: ui-monospace, monospace; font-size: 12px; }
+  .dominion-row .tag {
+    font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 7px;
+    border-radius: 20px; border: 1px solid rgba(203,185,143,0.3); color: #cbb98f;
+  }
+  .dominion-row .tag.owner-of-source { background: rgba(203,185,143,0.14); color: #eae4d8; border-color: rgba(203,185,143,0.55); }
+  .dominion-row .tag.eligible { color: #9fd6a8; border-color: rgba(159,214,168,0.4); }
+  .dominion-row .bar-track {
+    grid-column: 2; height: 16px; background: rgba(255,255,255,0.05); border-radius: 3px;
+    overflow: hidden; position: relative;
+  }
+  .dominion-row .bar-fill {
+    height: 100%; border-radius: 3px; background: linear-gradient(90deg, rgba(203,185,143,0.85), rgba(203,185,143,0.5));
+    min-width: 6%;
+  }
+  .dominion-row.rank-1 .bar-fill { background: linear-gradient(90deg, #e8cf7a, #cbb98f); }
+  .dominion-row.rank-2 .bar-fill { background: linear-gradient(90deg, #d7d9dd, #a9adb4); }
+  .dominion-row.rank-3 .bar-fill { background: linear-gradient(90deg, #cd8b57, #a86a3d); }
+  .dominion-row.rank-1 .medal { color: #e8cf7a; }
+  .dominion-row.rank-2 .medal { color: #cfd2d8; }
+  .dominion-row.rank-3 .medal { color: #cd8b57; }
+  .dominion-row .count {
+    position: absolute; right: 8px; top: 0; bottom: 0; display: flex; align-items: center;
+    font-size: 10.5px; color: #0a0806; font-weight: 600; text-shadow: 0 1px 0 rgba(255,255,255,0.15);
+  }
+  .dominion-history { margin-top: 34px; }
+  .dominion-history-row {
+    display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: #8a8378;
+    padding: 7px 0; border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .dominion-history-row .who { color: #b3ac9e; font-family: ui-monospace, monospace; }
+
+  /* --- claim failure screen: a dramatic full-screen beat, styled after the
+     "YOU DIED" family of game death screens, shown when a connected wallet
+     tries to claim Source without actually holding the most Mentographs --- */
+  .death-overlay {
+    background: #000; display: none; align-items: center; justify-content: center;
+    flex-direction: column; cursor: pointer; z-index: 90;
+  }
+  .death-overlay.open { display: flex; }
+  .death-title {
+    font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase; color: #9b1c1c;
+    font-size: clamp(28px, 6vw, 64px); text-shadow: 0 0 30px rgba(155,28,28,0.55);
+    opacity: 0; animation: deathFadeIn 2.2s ease forwards;
+    text-align: center; padding: 0 20px;
+  }
+  .death-subtitle {
+    margin-top: 18px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #6b6558; opacity: 0; animation: deathFadeIn 2.2s ease 0.6s forwards; text-align: center; padding: 0 20px;
+  }
+  .death-hint {
+    margin-top: 40px; font-size: 10.5px; color: #4a453d; letter-spacing: 0.06em;
+    opacity: 0; animation: deathFadeIn 2.2s ease 1.4s forwards;
+  }
+  @keyframes deathFadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+
   /* --- mobile: smaller HUD, wrapping toolbar, roomier tap targets, tighter overlay padding --- */
   @media (max-width: 640px) {
     #hud { max-width: calc(100vw - 48px); }
@@ -336,13 +410,6 @@
   <p class="sub" id="hud-sub">Drag to drift. Scroll to draw closer. Click a region to enter it.</p>
   <div class="sub" id="mint-counter">
     <span class="n">—</span> / 222 minted
-    <span id="cal-wrap">
-      <button id="cal-toggle" type="button">+ add to calendar</button>
-      <div id="cal-dropdown">
-        <a id="cal-google" href="#" target="_blank" rel="noopener">Google Calendar</a>
-        <a id="cal-ics" href="#" download="mentographs-mint.ics">Apple / Outlook (.ics)</a>
-      </div>
-    </span>
   </div>
 </div>
 
@@ -350,6 +417,7 @@
   <a id="btn-mint" href="https://opensea.io/collection/mentographs/overview" target="_blank" rel="noopener">Mint</a>
   <button id="btn-about">About</button>
   <button id="btn-gallery">Gallery</button>
+  <button id="btn-dominion">Dominion<span id="dominion-badge"></span></button>
   <div id="wallet-wrap">
     <button id="btn-wallet">Connect Wallet</button>
     <div id="wallet-dropdown">
@@ -502,6 +570,34 @@
   </div>
 </div>
 
+<div id="dominion-overlay" class="overlay">
+  <div class="overlay-panel dominion-panel">
+    <button class="close" id="dominion-close">&times;</button>
+    <h2>Dominion</h2>
+    <p class="tag">The Source follows whoever holds the most.</p>
+    <p class="dominion-intro">The Source is a single piece that isn't bought — it belongs to
+      whoever currently holds the most Mentographs, and moves the moment someone else
+      overtakes them. This is that standing, live from the chain.</p>
+
+    <div id="dominion-status" class="dominion-status" style="display:none;"></div>
+
+    <div id="dominion-loading" class="dominion-loading">Reading the chain…</div>
+    <div id="dominion-empty" class="dominion-empty" style="display:none;">No Mentographs have been minted yet — Dominion will fill in as they are.</div>
+    <div id="dominion-list" class="dominion-rank-list"></div>
+
+    <div id="dominion-history" class="dominion-history" style="display:none;">
+      <h3>Past holders</h3>
+      <div id="dominion-history-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="death-overlay" class="overlay death-overlay">
+  <div class="death-title">Not Enough Mentographs</div>
+  <div class="death-subtitle">Dominion was not earned this day.</div>
+  <div class="death-hint">click anywhere to return</div>
+</div>
+
 <!--
   Layer 2 (blockchain), default path: MockBlockchainAdapter, plain classic
   scripts so this page keeps working when opened directly (file://).
@@ -518,6 +614,7 @@
 <script src="blockchain-adapter.js"></script>
 <script src="mock-blockchain-adapter.js"></script>
 <script src="contract-config.js"></script>
+<script src="source-config.js"></script>
 <script type="module" src="viem-blockchain-adapter.js"></script>
 
 <script>
@@ -2318,55 +2415,6 @@ refreshMintCounter();
 setInterval(refreshMintCounter, 25000);
 window.addEventListener("viem-adapter-ready", function() { setTimeout(refreshMintCounter, 600); });
 
-/* --- Add-to-calendar (HUD) ---
-   Aug 26 2026, 9:00 AM Pacific — Pacific is UTC-7 in August (daylight
-   time), so that's 16:00 UTC. If the real mint time ever moves, this one
-   constant is the only thing that needs to change. */
-var MINT_TIME_MS = Date.parse("2026-08-26T16:00:00Z");
-
-(function setupAddToCalendar() {
-  function pad2(n) { return (n < 10 ? "0" : "") + n; }
-  function icsStamp(dt) {
-    return dt.getUTCFullYear() + pad2(dt.getUTCMonth() + 1) + pad2(dt.getUTCDate())
-      + "T" + pad2(dt.getUTCHours()) + pad2(dt.getUTCMinutes()) + pad2(dt.getUTCSeconds()) + "Z";
-  }
-  var start = new Date(MINT_TIME_MS);
-  var end = new Date(MINT_TIME_MS + 60 * 60 * 1000); // 1hr placeholder window
-  var title = "Mentographs mint opens";
-  var details = "Mentographs — 222 1/1 pieces by Photon Tide. Minting opens on OpenSea.";
-  var location = "https://opensea.io/collection/mentographs/overview";
-
-  var gUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE"
-    + "&text=" + encodeURIComponent(title)
-    + "&dates=" + icsStamp(start) + "/" + icsStamp(end)
-    + "&details=" + encodeURIComponent(details)
-    + "&location=" + encodeURIComponent(location);
-  document.getElementById("cal-google").href = gUrl;
-
-  var ics = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Mentographs//Mint//EN", "CALSCALE:GREGORIAN",
-    "BEGIN:VEVENT",
-    "UID:mentographs-mint-" + MINT_TIME_MS + "@mentographs.art",
-    "DTSTAMP:" + icsStamp(new Date()),
-    "DTSTART:" + icsStamp(start),
-    "DTEND:" + icsStamp(end),
-    "SUMMARY:" + title,
-    "DESCRIPTION:" + details,
-    "LOCATION:" + location,
-    "END:VEVENT", "END:VCALENDAR"
-  ].join("\r\n");
-  document.getElementById("cal-ics").href = "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
-
-  document.getElementById("cal-toggle").addEventListener("click", function(e) {
-    e.stopPropagation();
-    document.getElementById("cal-dropdown").classList.toggle("open");
-  });
-  document.addEventListener("click", function(e) {
-    var wrap = document.getElementById("cal-wrap");
-    if (wrap && !wrap.contains(e.target)) document.getElementById("cal-dropdown").classList.remove("open");
-  });
-})();
-
 /* --- About overlay --- */
 function openOverlay(id) { document.getElementById(id).classList.add("open"); }
 function closeOverlay(id) { document.getElementById(id).classList.remove("open"); }
@@ -2513,6 +2561,10 @@ function getWalletConnectProvider() {
 
 function renderWalletButton() {
   document.getElementById("btn-wallet").textContent = walletAddress ? shortWalletAddr(walletAddress) : "Connect Wallet";
+  // Every place wallet state changes (connect, disconnect, account switch)
+  // funnels through here, so this is also the one place that needs to
+  // keep the Dominion nav badge in sync with who's currently connected.
+  refreshDominionBadge();
 }
 
 function renderWalletDropdown() {
@@ -2669,6 +2721,453 @@ if (window.ethereum && window.ethereum.on) {
     if (walletAddress) refreshOwnedTokens(); else { ownedTokenIds = []; renderWalletDropdown(); }
   });
 }
+
+/* ---------------------------------------------------------------------
+   Dominion: live "who holds the most Mentographs" ranking, plus the
+   Source-claiming flow. Reads chainAdapter fresh (same convention as
+   everything else here) so it automatically starts using real chain data
+   the moment ViemBlockchainAdapter swaps in, and reads window.SOURCE_CONFIG
+   fresh too, so filling in that one file once the Source contract is
+   deployed is genuinely all that's needed — nothing here changes.
+   --------------------------------------------------------------------- */
+
+var DOMINION_TOP_N = 10;
+var DOMINION_MIN_BAR_PCT = 14; // every bar stays at least this wide, however lopsided holdings get
+var dominionState = { list: [], sourceHolder: null, loaded: false };
+var dominionRefreshing = null;
+
+function sourceConfigured() {
+  return !!(window.SOURCE_CONFIG && window.SOURCE_CONFIG.address);
+}
+
+// A curved (square-root) scale rather than a straight line against the
+// leader — with a real wallet already sitting on two dozen Mentographs
+// while others hold a handful, a linear bar would shrink everyone else
+// down to a sliver. This keeps "clearly ahead" readable without making
+// the rest of the board look broken or empty.
+function dominionBarPct(count, maxCount) {
+  if (!maxCount || maxCount <= 0) return DOMINION_MIN_BAR_PCT;
+  var frac = Math.sqrt(count) / Math.sqrt(maxCount);
+  return Math.max(DOMINION_MIN_BAR_PCT, Math.round(frac * 100));
+}
+
+function dominionCountFor(list, address) {
+  if (!address) return 0;
+  var addr = String(address).toLowerCase();
+  var hit = list.filter(function(e) { return e.address === addr; })[0];
+  return hit ? hit.count : 0;
+}
+
+// Top N by rank, plus every wallet tied with whoever landed in the last
+// visible spot — a true tie for #10 never silently drops someone.
+function dominionSelectTop(list, n) {
+  if (list.length <= n) return list.slice();
+  var cutoff = list[n - 1].count;
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    if (i < n || list[i].count === cutoff) out.push(list[i]);
+    else break;
+  }
+  return out;
+}
+
+function dominionMedal(rank) {
+  if (rank === 1) return "🥇";
+  if (rank === 2) return "🥈";
+  if (rank === 3) return "🥉";
+  return "#" + rank;
+}
+
+function dominionCosmeticTag(rank) {
+  if (rank === 2) return "Second Sight";
+  if (rank === 3) return "Third Eye";
+  return null;
+}
+
+// Whether `address` could successfully call claimSource() right now, by
+// the same rule the contract itself enforces: strictly more Mentographs
+// than the current holder, or — if nobody holds it yet — being (one of)
+// the wallet(s) actually ranked #1.
+function dominionIsEligible(address) {
+  if (!address || !dominionState.loaded || !dominionState.list.length) return false;
+  var addr = String(address).toLowerCase();
+  var count = dominionCountFor(dominionState.list, addr);
+  if (count <= 0) return false;
+  if (!dominionState.sourceHolder) {
+    var maxCount = dominionState.list[0].count;
+    return count === maxCount;
+  }
+  if (dominionState.sourceHolder.address === addr) return false; // already holds it
+  var holderCount = dominionCountFor(dominionState.list, dominionState.sourceHolder.address);
+  return count > holderCount;
+}
+
+// Resolves to an ENS name for display when one exists, falling back to
+// the same shortened-address style used everywhere else on the site.
+function dominionDisplayName(address) {
+  if (!chainAdapter.getEnsName) return Promise.resolve(shortAddr(address));
+  return chainAdapter.getEnsName(address).then(function(name) {
+    return name || shortAddr(address);
+  }).catch(function() { return shortAddr(address); });
+}
+
+// A single cached dynamic import of viem, shared by every Source-contract
+// read/write below — same pattern already used above for WalletConnect's
+// provider, and kept independent of viem-blockchain-adapter.js since that
+// module only ever knows about the Mentographs contract.
+var viemModulePromise = null;
+function getViem() {
+  if (!viemModulePromise) viemModulePromise = import("https://esm.sh/viem@2.21.0?bundle");
+  return viemModulePromise;
+}
+
+function sourceChainDef() {
+  var cfg = window.SOURCE_CONFIG;
+  var rpcUrls = (window.CONTRACT_CONFIG && window.CONTRACT_CONFIG.rpcUrls) || [];
+  return {
+    id: cfg.chainId,
+    name: "Ethereum",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: rpcUrls } }
+  };
+}
+
+var sourcePublicClientPromise = null;
+function getSourcePublicClient() {
+  if (!sourceConfigured()) return Promise.resolve(null);
+  if (!sourcePublicClientPromise) {
+    sourcePublicClientPromise = getViem().then(function(viem) {
+      var rpcUrls = (window.CONTRACT_CONFIG && window.CONTRACT_CONFIG.rpcUrls) || [];
+      return viem.createPublicClient({
+        chain: sourceChainDef(),
+        transport: viem.fallback(rpcUrls.map(function(u) { return viem.http(u); }))
+      });
+    });
+  }
+  return sourcePublicClientPromise;
+}
+
+// Reads who the Source contract says currently holds it, straight from
+// the chain. Never throws — a contract that isn't deployed yet, or a
+// call that fails for any reason, just reads as "nobody holds it yet",
+// same honest default the rest of this site uses for "not yet minted".
+function fetchSourceHolder() {
+  if (!sourceConfigured()) return Promise.resolve(null);
+  var cfg = window.SOURCE_CONFIG;
+  return getSourcePublicClient().then(function(client) {
+    if (!client) return null;
+    return Promise.all([
+      client.readContract({ address: cfg.address, abi: cfg.abi, functionName: "currentHolder" }),
+      client.readContract({ address: cfg.address, abi: cfg.abi, functionName: "currentHolderSince" })
+    ]);
+  }).then(function(res) {
+    if (!res) return null;
+    var holder = res[0], since = res[1];
+    if (!holder || /^0x0+$/.test(holder)) return null;
+    return { address: String(holder).toLowerCase(), sinceMs: Number(since) * 1000 };
+  }).catch(function(err) {
+    console.warn("Dominion: could not read the Source contract:", err);
+    return null;
+  });
+}
+
+// Full "who held it, for how long" history, reconstructed from the Source
+// contract's own Transfer events — the exact same alchemy_getAssetTransfers
+// approach already used for Mentographs itself (see viem-blockchain-adapter.js),
+// just pointed at a different contract address. Kept self-contained here
+// rather than generalizing that file, since Source's history is small and
+// this is the only place that needs it.
+function fetchSourceTransferHistory() {
+  if (!sourceConfigured()) return Promise.resolve([]);
+  var alchemyUrl = ((window.CONTRACT_CONFIG && window.CONTRACT_CONFIG.rpcUrls) || []).filter(function(u) { return u.indexOf("g.alchemy.com") !== -1; })[0];
+  if (!alchemyUrl) return Promise.resolve([]);
+  var cfg = window.SOURCE_CONFIG;
+
+  function page(pageKey, acc) {
+    var params = {
+      fromBlock: "0x0", toBlock: "latest", contractAddresses: [cfg.address],
+      category: ["erc721"], withMetadata: true, maxCount: "0x3e8"
+    };
+    if (pageKey) params.pageKey = pageKey;
+    return fetch(alchemyUrl, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "alchemy_getAssetTransfers", params: [params] })
+    }).then(function(res) { return res.json(); }).then(function(json) {
+      if (json.error) throw new Error(json.error.message || "alchemy_getAssetTransfers failed");
+      var transfers = (json.result && json.result.transfers) || [];
+      var next = acc.concat(transfers);
+      if (json.result && json.result.pageKey && transfers.length) return page(json.result.pageKey, next);
+      return next;
+    });
+  }
+
+  return page(null, []).then(function(transfers) {
+    return transfers.map(function(t) {
+      return {
+        to: t.to,
+        blockNumber: parseInt(t.blockNum, 16),
+        date: (t.metadata && t.metadata.blockTimestamp) ? t.metadata.blockTimestamp : null
+      };
+    }).sort(function(a, b) { return a.blockNumber - b.blockNumber; });
+  }).catch(function(err) {
+    console.warn("Dominion: could not load Source transfer history:", err);
+    return [];
+  });
+}
+
+function getActiveEip1193Provider() {
+  return window.ethereum || wcProvider || null;
+}
+
+// Submits the actual on-chain claimSource() call, signed by whichever
+// wallet is currently connected. Resolves to a tx hash; never used to
+// force anything — the contract itself is the real gatekeeper, this is
+// just the transaction that asks it.
+function claimSourceOnChain() {
+  var cfg = window.SOURCE_CONFIG;
+  var provider = getActiveEip1193Provider();
+  if (!provider || !walletAddress) return Promise.reject(new Error("No wallet connected."));
+  return getViem().then(function(viem) {
+    var walletClient = viem.createWalletClient({
+      account: walletAddress,
+      chain: sourceChainDef(),
+      transport: viem.custom(provider)
+    });
+    return walletClient.writeContract({ address: cfg.address, abi: cfg.abi, functionName: "claimSource" });
+  });
+}
+
+function showDeathScreen() { document.getElementById("death-overlay").classList.add("open"); }
+function hideDeathScreen() { document.getElementById("death-overlay").classList.remove("open"); }
+document.getElementById("death-overlay").addEventListener("click", hideDeathScreen);
+
+function handleClaimClick() {
+  if (!walletAddress) {
+    document.getElementById("btn-wallet").click();
+    return;
+  }
+  if (!sourceConfigured()) return;
+
+  // Client-side pre-check first — an obviously ineligible wallet gets the
+  // death screen immediately, with no wallet prompt and no wasted gas.
+  if (!dominionIsEligible(walletAddress)) {
+    showDeathScreen();
+    return;
+  }
+
+  var btn = document.getElementById("dominion-claim-btn");
+  var prevLabel = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Confirm in wallet…"; }
+
+  claimSourceOnChain().then(function(txHash) {
+    console.log("Source claim submitted:", txHash);
+    if (btn) btn.textContent = "Claim sent — confirming…";
+    setTimeout(refreshDominionPage, 15000);
+  }).catch(function(err) {
+    console.warn("Source claim failed:", err);
+    if (btn) { btn.disabled = false; btn.textContent = prevLabel; }
+    // A plain wallet rejection (closed the prompt) stays quiet. Anything
+    // else — most likely someone else claimed a moment earlier and the
+    // contract's own check now disagrees with our last known standings —
+    // gets the same themed screen rather than a raw RPC error.
+    var rejected = err && (err.code === 4001 || /rejected|denied/i.test(err.message || err.shortMessage || ""));
+    if (!rejected) showDeathScreen();
+  });
+}
+
+function renderDominionStatus() {
+  var el = document.getElementById("dominion-status");
+  el.style.display = "";
+  el.innerHTML = "";
+
+  if (!sourceConfigured()) {
+    el.textContent = "The Source contract hasn't been deployed yet — once it's live, this is where you'll see who currently holds it.";
+    return;
+  }
+
+  var line = document.createElement("div");
+  var sourceHolder = dominionState.sourceHolder;
+  if (sourceHolder) {
+    var days = Math.max(0, Math.floor((Date.now() - sourceHolder.sinceMs) / 86400000));
+    var whoSpan = document.createElement("span");
+    whoSpan.className = "who";
+    whoSpan.textContent = shortAddr(sourceHolder.address);
+    line.appendChild(document.createTextNode("The Source is currently held by "));
+    line.appendChild(whoSpan);
+    line.appendChild(document.createTextNode(" — holding it for " + days + (days === 1 ? " day." : " days.")));
+    dominionDisplayName(sourceHolder.address).then(function(name) {
+      if (name && name.indexOf("0x") !== 0) whoSpan.textContent = name;
+    });
+  } else {
+    line.textContent = "The Source hasn't been claimed yet. Whoever ranks #1 below can claim it first.";
+  }
+  el.appendChild(line);
+
+  if (walletAddress) {
+    var btn = document.createElement("button");
+    btn.id = "dominion-claim-btn";
+    btn.type = "button";
+    if (sourceHolder && sourceHolder.address === walletAddress.toLowerCase()) {
+      btn.textContent = "You hold the Source";
+      btn.disabled = true;
+    } else {
+      btn.textContent = "Claim Source";
+      btn.addEventListener("click", handleClaimClick);
+    }
+    el.appendChild(btn);
+  } else {
+    var hint = document.createElement("div");
+    hint.className = "dominion-loading";
+    hint.style.padding = "10px 0 0";
+    hint.textContent = "Connect a wallet to see whether you qualify to claim it.";
+    el.appendChild(hint);
+  }
+}
+
+function renderDominionList() {
+  var container = document.getElementById("dominion-list");
+  var emptyEl = document.getElementById("dominion-empty");
+  container.innerHTML = "";
+  var list = dominionState.list;
+  if (!list.length) { emptyEl.style.display = ""; return; }
+  emptyEl.style.display = "none";
+
+  var top = dominionSelectTop(list, DOMINION_TOP_N);
+  var maxCount = list[0].count;
+  var sourceHolder = dominionState.sourceHolder;
+  var holderCount = sourceHolder ? dominionCountFor(list, sourceHolder.address) : 0;
+
+  top.forEach(function(entry, idx) {
+    var rank = idx + 1;
+    var row = document.createElement("div");
+    row.className = "dominion-row" + (rank <= 3 ? " rank-" + rank : "");
+
+    var medal = document.createElement("div");
+    medal.className = "medal";
+    medal.textContent = dominionMedal(rank);
+    row.appendChild(medal);
+
+    var whoLine = document.createElement("div");
+    whoLine.className = "who-line";
+    var addrSpan = document.createElement("span");
+    addrSpan.className = "addr";
+    addrSpan.textContent = shortAddr(entry.address);
+    whoLine.appendChild(addrSpan);
+    dominionDisplayName(entry.address).then(function(name) {
+      if (name && name.indexOf("0x") !== 0) addrSpan.textContent = name;
+    });
+
+    var isHolder = sourceHolder && sourceHolder.address === entry.address;
+    var isEligible = sourceConfigured() && !isHolder && (
+      sourceHolder ? entry.count > holderCount : entry.count === maxCount
+    );
+    if (isHolder) {
+      var ownerTag = document.createElement("span");
+      ownerTag.className = "tag owner-of-source";
+      ownerTag.textContent = "owner of Source";
+      whoLine.appendChild(ownerTag);
+    } else if (isEligible) {
+      var eligTag = document.createElement("span");
+      eligTag.className = "tag eligible";
+      eligTag.textContent = "eligible to claim";
+      whoLine.appendChild(eligTag);
+    }
+
+    var cosmetic = dominionCosmeticTag(rank);
+    if (cosmetic) {
+      var cosmeticTag = document.createElement("span");
+      cosmeticTag.className = "tag";
+      cosmeticTag.textContent = cosmetic;
+      whoLine.appendChild(cosmeticTag);
+    }
+    row.appendChild(whoLine);
+
+    var track = document.createElement("div");
+    track.className = "bar-track";
+    var fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.width = dominionBarPct(entry.count, maxCount) + "%";
+    var countLabel = document.createElement("span");
+    countLabel.className = "count";
+    countLabel.textContent = entry.count;
+    track.appendChild(fill);
+    track.appendChild(countLabel);
+    row.appendChild(track);
+
+    container.appendChild(row);
+  });
+}
+
+function renderDominionHistory() {
+  var wrap = document.getElementById("dominion-history");
+  var list = document.getElementById("dominion-history-list");
+  if (!sourceConfigured()) { wrap.style.display = "none"; return; }
+  fetchSourceTransferHistory().then(function(transfers) {
+    if (!transfers.length) { wrap.style.display = "none"; return; }
+    wrap.style.display = "";
+    list.innerHTML = "";
+    transfers.forEach(function(tr, idx) {
+      var next = transfers[idx + 1];
+      var startMs = tr.date ? Date.parse(tr.date) : null;
+      var endMs = next ? (next.date ? Date.parse(next.date) : Date.now()) : Date.now();
+      var days = (startMs != null) ? Math.max(0, Math.floor((endMs - startMs) / 86400000)) : null;
+
+      var row = document.createElement("div");
+      row.className = "dominion-history-row";
+      var who = document.createElement("span");
+      who.className = "who";
+      who.textContent = shortAddr(tr.to);
+      dominionDisplayName(tr.to).then(function(name) { if (name && name.indexOf("0x") !== 0) who.textContent = name; });
+      var dur = document.createElement("span");
+      dur.textContent = next ? (days != null ? "held " + days + (days === 1 ? " day" : " days") : "") : "holding now";
+      row.appendChild(who);
+      row.appendChild(dur);
+      list.appendChild(row);
+    });
+  });
+}
+
+function refreshDominionBadge() {
+  var badge = document.getElementById("dominion-badge");
+  if (!badge) return;
+  badge.classList.toggle("show", !!(walletAddress && dominionIsEligible(walletAddress)));
+}
+
+function refreshDominionPage() {
+  if (dominionRefreshing) return dominionRefreshing;
+  var loadingEl = document.getElementById("dominion-loading");
+  loadingEl.style.display = "";
+  loadingEl.textContent = "Reading the chain…";
+  dominionRefreshing = Promise.all([
+    chainAdapter.getHoldingsLeaderboard ? chainAdapter.getHoldingsLeaderboard() : Promise.resolve([]),
+    fetchSourceHolder()
+  ]).then(function(res) {
+    dominionState = { list: res[0] || [], sourceHolder: res[1], loaded: true };
+    loadingEl.style.display = "none";
+    renderDominionStatus();
+    renderDominionList();
+    renderDominionHistory();
+    refreshDominionBadge();
+  }).catch(function(err) {
+    console.warn("Dominion: failed to refresh:", err);
+    loadingEl.textContent = "Couldn't reach the chain — try again shortly.";
+  }).then(function() { dominionRefreshing = null; });
+  return dominionRefreshing;
+}
+
+document.getElementById("btn-dominion").addEventListener("click", function() {
+  openOverlay("dominion-overlay");
+  refreshDominionPage();
+});
+document.getElementById("dominion-close").addEventListener("click", function() { closeOverlay("dominion-overlay"); });
+document.getElementById("dominion-overlay").addEventListener("click", function(e) {
+  if (e.target.id === "dominion-overlay") closeOverlay("dominion-overlay");
+});
+
+// Same light polling cadence the mint counter already uses — keeps the
+// nav badge (and the page itself, if it's open) honest as holdings shift.
+setInterval(refreshDominionPage, 30000);
+window.addEventListener("viem-adapter-ready", function() { setTimeout(refreshDominionPage, 800); });
 
 })();
 </script>
