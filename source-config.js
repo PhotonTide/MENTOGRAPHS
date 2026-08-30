@@ -10,30 +10,19 @@
    SeaDrop clone) has no hook for this kind of logic and can't be changed
    after deployment anyway.
 
-   THIS FILE IS A PLACEHOLDER until that contract is deployed. `address`
-   below is null on purpose — the Dominion page reads that as "not live
-   yet" and shows the holdings leaderboard normally, but keeps the Claim
-   Source button disabled with an explanatory note instead of trying (and
-   failing) to call a contract that doesn't exist. Once the Source
-   contract is deployed:
-
-     1. Paste its deployed address into `address` below (starts with 0x).
-     2. Double-check `abi` below still matches the contract exactly —
-        it's already written to match the Source contract Claude
-        prepared alongside this site update, so if that's what you
-        deployed unmodified, nothing here needs to change.
-     3. Push. That's it — the Dominion page picks it up automatically,
-        no other file needs touching.
+   LIVE: the Source contract is deployed at the address below (mainnet,
+   deployed via Remix from account 0xa90dc6d356b622b9783f5020722e6f92b663438f,
+   tx 0x92fdf...95d01, block 25866381). The ABI below already matches the
+   MentographsSource.sol contract that was actually deployed — nothing
+   else needs to change.
 
    Everything else about how this site reads the deployed contract
    (viem, public RPC, no server) matches contract-config.js — see that
    file if any of this is unfamiliar.
    --------------------------------------------------------------------- */
 window.SOURCE_CONFIG = {
-  // Fill this in once the Source contract is deployed (see above). Left
-  // null intentionally — do not put the Mentographs contract address
-  // here, this is a different, separate contract.
-  address: null,
+  // The deployed Source contract on Ethereum mainnet.
+  address: "0x0b69729f75de268179f5ddc1738216a804154e6e",
 
   // Same chain as Mentographs itself.
   chainId: 1,
